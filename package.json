@@ -1,0 +1,42 @@
+{
+  "name": "@platformatic/undici-cache-redis",
+  "version": "1.0.0",
+  "description": "An Undici cache store with a Redis backend.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "lint": "standard | snazzy",
+    "lint:fix": "standard --fix | snazzy",
+    "test": "node --test ./test/*.test.js",
+    "test:typescript": "tsd --files test/ && tsc ./index.d.ts --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/undici-cache-redis.git"
+  },
+  "keywords": [
+    "undici",
+    "cache",
+    "redis"
+  ],
+  "author": "flakey5",
+  "license": "MIT",
+  "types": "./index.d.ts",
+  "bugs": {
+    "url": "https://github.com/platformatic/undici-cache-redis/issues"
+  },
+  "homepage": "https://github.com/platformatic/undici-cache-redis#readme",
+  "dependencies": {
+    "iovalkey": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "snazzy": "^9.0.0",
+    "standard": "^17.1.2",
+    "tsd": "^0.31.2",
+    "typescript": "^5.6.2",
+    "undici": "^6.19.8"
+  }
+}
