@@ -14,8 +14,9 @@ function cacheStoreTests (CacheStore) {
     test('matches interface', async (t) => {
       const store = new CacheStore()
 
-      t.after(() => {
-        store.close()
+      t.after(async () => {
+        await setTimeoutAsync(100)
+        await store.close()
       })
 
       equal(typeof store.isFull, 'boolean')
@@ -52,8 +53,8 @@ function cacheStoreTests (CacheStore) {
         }
       })
 
-      t.after(() => {
-        store.close()
+      t.after(async () => {
+        await store.close()
       })
 
       await store.deleteByOrigin('localhost')
@@ -148,8 +149,8 @@ function cacheStoreTests (CacheStore) {
         }
       })
 
-      t.after(() => {
-        store.close()
+      t.after(async () => {
+        await store.close()
       })
 
       await store.deleteByOrigin('localhost')
@@ -196,8 +197,8 @@ function cacheStoreTests (CacheStore) {
         }
       })
 
-      t.after(() => {
-        store.close()
+      t.after(async () => {
+        await store.close()
       })
 
       await store.deleteByOrigin('localhost')
@@ -244,8 +245,8 @@ function cacheStoreTests (CacheStore) {
         }
       })
 
-      t.after(() => {
-        store.close()
+      t.after(async () => {
+        await store.close()
       })
 
       await store.deleteByOrigin('localhost')
