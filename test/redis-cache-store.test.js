@@ -48,7 +48,7 @@ function cacheStoreTests (CacheStore) {
        */
       const store = new CacheStore({
         clientOpts: {
-          keyPrefix: 'basic:'
+          keyPrefix: `${crypto.randomUUID()}:`
         }
       })
 
@@ -144,7 +144,7 @@ function cacheStoreTests (CacheStore) {
        */
       const store = new CacheStore({
         clientOpts: {
-          keyPrefix: 'stale-responses:'
+          keyPrefix: `${crypto.randomUUID()}:`
         }
       })
 
@@ -192,7 +192,7 @@ function cacheStoreTests (CacheStore) {
        */
       const store = new CacheStore({
         clientOpts: {
-          keyPrefix: 'deleteat-check:'
+          keyPrefix: `${crypto.randomUUID()}:`
         }
       })
 
@@ -240,7 +240,7 @@ function cacheStoreTests (CacheStore) {
        */
       const store = new CacheStore({
         clientOpts: {
-          keyPrefix: 'respects-vary-directives:'
+          keyPrefix: `${crypto.randomUUID()}:`
         }
       })
 

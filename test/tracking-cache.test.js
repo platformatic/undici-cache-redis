@@ -1,7 +1,7 @@
 'use strict'
 
 const { describe, test } = require('node:test')
-const { deepStrictEqual, notEqual, equal } = require('node:assert')
+const { deepStrictEqual, equal } = require('node:assert')
 const TrackingCache = require('../lib/tracking-cache')
 
 describe('TrackingCache', () => {
@@ -12,9 +12,9 @@ describe('TrackingCache', () => {
         redisCalls++
 
         if (key === 'some-key') {
-            return 'asd123'
+          return 'asd123'
         }
-        
+
         return null
       }
     })
@@ -82,10 +82,10 @@ describe('TrackingCache', () => {
         redisCalls++
 
         if (key === 'some-key') {
-            return {
-                field1: 'asd123',
-                field2: '123asd'
-            }
+          return {
+            field1: 'asd123',
+            field2: '123asd'
+          }
         }
 
         return {}
@@ -95,15 +95,15 @@ describe('TrackingCache', () => {
     // First request, should reach redis
     let value = await cache.hgetall('some-key')
     deepStrictEqual(value, {
-        field1: 'asd123',
-        field2: '123asd'
+      field1: 'asd123',
+      field2: '123asd'
     })
     equal(redisCalls, 1)
-    
+
     value = await cache.hgetall('some-key')
     deepStrictEqual(value, {
-        field1: 'asd123',
-        field2: '123asd'
+      field1: 'asd123',
+      field2: '123asd'
     })
     equal(redisCalls, 1)
 
