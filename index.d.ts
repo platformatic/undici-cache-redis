@@ -12,6 +12,7 @@ export interface RedisCacheStoreOpts {
    * @default true
    */
   tracking?: boolean
+  errorCallback?: (err: Error) => void
 }
 
 declare class RedisCacheStore {
@@ -34,6 +35,7 @@ interface RedisStoreWritable extends Writable {
   set rawTrailers(trailers: string[] | undefined)
 }
 
+// TODO: remove when there's a type upstream
 interface CacheStoreValue {
   statusCode: number;
   statusMessage: string;
