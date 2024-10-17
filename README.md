@@ -19,11 +19,6 @@ const client = new Client('http://localhost')
         keyPrefix: 'cache-interceptor:',
         // ...
       },
-
-      // Optional, the maximum amount of entries to store. If the number of
-      //  responses stored in Redis is above or equal to this number, no more
-      //  responses will be cached.
-      maxEntries: Infinity,
       
       // Optional, the max body size in bytes of a response to store. If a
       //  response's body size exceeds this, the response will not be cached.

@@ -4,7 +4,6 @@ import { Dispatcher } from "undici";
 
 export interface RedisCacheStoreOpts {
   clientOpts?: RedisOptions
-  maxEntries?: number
   maxEntrySize?: number
   /**
    * Redis client-side caching

@@ -8,14 +8,12 @@ expectAssignable<RedisCacheStoreOpts>({})
 
 expectAssignable<RedisCacheStoreOpts>({
     clientOpts: {},
-    maxEntries: 0,
     maxEntrySize: 0,
     tracking: true
 })
 
 expectAssignable<RedisCacheStoreOpts>({
     clientOpts: clientOpts,
-    maxEntries: 0,
     maxEntrySize: 0,
     tracking: false
 })
