@@ -1,7 +1,7 @@
 'use strict'
 
 const { describe, test } = require('node:test')
-const { deepStrictEqual, notEqual, equal } = require('node:assert')
+const { deepStrictEqual, notEqual, equal, fail } = require('node:assert')
 const { once } = require('node:events')
 const RedisCacheStore = require('../lib/redis-cache-store')
 
@@ -50,6 +50,9 @@ function cacheStoreTests (CacheStore) {
       const store = new CacheStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
+        },
+        errorCallback: (err) => {
+          fail(err)
         }
       })
 
@@ -146,6 +149,9 @@ function cacheStoreTests (CacheStore) {
       const store = new CacheStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
+        },
+        errorCallback: (err) => {
+          fail(err)
         }
       })
 
@@ -194,6 +200,9 @@ function cacheStoreTests (CacheStore) {
       const store = new CacheStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
+        },
+        errorCallback: (err) => {
+          fail(err)
         }
       })
 
@@ -242,6 +251,9 @@ function cacheStoreTests (CacheStore) {
       const store = new CacheStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
+        },
+        errorCallback: (err) => {
+          fail(err)
         }
       })
 
