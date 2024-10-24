@@ -1,23 +1,58 @@
 'use strict'
 
 const { describe, test } = require('node:test')
-const { deepStrictEqual, equal } = require('node:assert')
+const { deepStrictEqual, equal, fail } = require('node:assert')
 const TrackingCache = require('../lib/tracking-cache')
+
+const errorCallback = (err) => fail(err)
+
+const buildSubClient = () => {
+  let messageCb
+
+  return {
+    call: (...args) => {
+      deepStrictEqual([...args], ['CLIENT', 'ID'])
+      return Promise.resolve(0)
+    },
+    subscribe: (channel) => {
+      equal(channel, '__redis__:invalidate')
+      return Promise.resolve()
+    },
+    on: (event, cb) => {
+      if (event !== 'message') {
+        fail(`untested event: ${event}`)
+      }
+      messageCb = cb
+    },
+    _invalidateKey: (key) => {
+      messageCb('__redis__:invalidate', key)
+    }
+  }
+}
 
 describe('TrackingCache', () => {
   test('get', async () => {
     let redisCalls = 0
-    const cache = new TrackingCache({
-      get: (key) => {
-        redisCalls++
 
-        if (key === 'some-key') {
-          return 'asd123'
+    const subClient = buildSubClient()
+    const cache = new TrackingCache(
+      {
+        get: (key) => {
+          redisCalls++
+
+          if (key === 'some-key') {
+            return 'asd123'
+          }
+
+          return null
+        },
+        call: (...args) => {
+          deepStrictEqual([...args], ['CLIENT', 'TRACKING', 'on', 'REDIRECT', 0])
         }
-
-        return null
-      }
-    })
+      },
+      subClient,
+      errorCallback
+    )
 
     // First request, should reach redis
     let value = await cache.get('some-key')
@@ -30,7 +65,7 @@ describe('TrackingCache', () => {
     equal(redisCalls, 1)
 
     // Invalidate it & try again, should reach Redis
-    cache.invalidate('some-key')
+    subClient._invalidateKey('some-key')
 
     value = await cache.get('some-key')
     equal(value, 'asd123')
@@ -43,19 +78,28 @@ describe('TrackingCache', () => {
 
   test('hget', async () => {
     let redisCalls = 0
-    const cache = new TrackingCache({
-      hget: (_, value) => {
-        redisCalls++
 
-        if (value === 'field1') {
-          return 'asd123'
-        } else if (value === 'field2') {
-          return '123asd'
+    const subClient = buildSubClient()
+    const cache = new TrackingCache(
+      {
+        hget: (_, value) => {
+          redisCalls++
+
+          if (value === 'field1') {
+            return 'asd123'
+          } else if (value === 'field2') {
+            return '123asd'
+          }
+
+          return null
+        },
+        call: (...args) => {
+          deepStrictEqual([...args], ['CLIENT', 'TRACKING', 'on', 'REDIRECT', 0])
         }
-
-        return null
-      }
-    })
+      },
+      subClient,
+      errorCallback
+    )
 
     // First request, should reach redis
     let value = await cache.hget('some-key', 'field1')
@@ -77,20 +121,28 @@ describe('TrackingCache', () => {
 
   test('hgetall', async () => {
     let redisCalls = 0
-    const cache = new TrackingCache({
-      hgetall: (key) => {
-        redisCalls++
+    const subClient = buildSubClient()
+    const cache = new TrackingCache(
+      {
+        hgetall: (key) => {
+          redisCalls++
 
-        if (key === 'some-key') {
-          return {
-            field1: 'asd123',
-            field2: '123asd'
+          if (key === 'some-key') {
+            return {
+              field1: 'asd123',
+              field2: '123asd'
+            }
           }
-        }
 
-        return {}
-      }
-    })
+          return {}
+        },
+        call: (...args) => {
+          deepStrictEqual([...args], ['CLIENT', 'TRACKING', 'on', 'REDIRECT', 0])
+        }
+      },
+      subClient,
+      errorCallback
+    )
 
     // First request, should reach redis
     let value = await cache.hgetall('some-key')
