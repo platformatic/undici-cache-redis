@@ -7,15 +7,12 @@ const RedisCacheStore = require('../lib/redis-cache-store')
 
 cacheStoreTests(RedisCacheStore)
 
-const setTimeoutAsync = (time) => new Promise((resolve) => setTimeout(resolve, time))
-
 function cacheStoreTests (CacheStore) {
   describe(CacheStore.prototype.constructor.name, () => {
     test('matches interface', async (t) => {
       const store = new CacheStore()
 
       t.after(async () => {
-        await setTimeoutAsync(100)
         await store.close()
       })
 
@@ -70,8 +67,7 @@ function cacheStoreTests (CacheStore) {
       notEqual(writeStream, undefined)
       writeResponse(writeStream, requestBody, requestTrailers)
 
-      // Wait for redis to be written too
-      await setTimeoutAsync(500)
+      await once(writeStream, 'close')
 
       // Now try fetching it with a deep copy of the original request
       let readStream = await store.createReadStream(structuredClone(request))
@@ -113,8 +109,7 @@ function cacheStoreTests (CacheStore) {
       notEqual(writeStream, undefined)
       writeResponse(writeStream, anotherBody, anotherTrailers)
 
-      // Wait for redis to be written too
-      await setTimeoutAsync(500)
+      await once(writeStream, 'close')
 
       readStream = await store.createReadStream(anotherRequest)
       notEqual(readStream, undefined)
@@ -165,8 +160,7 @@ function cacheStoreTests (CacheStore) {
       notEqual(writeStream, undefined)
       writeResponse(writeStream, requestBody, requestTrailers)
 
-      // Wait for redis to be written too
-      await setTimeoutAsync(500)
+      await once(writeStream, 'close')
 
       const readStream = await store.createReadStream(request)
       notEqual(readStream, undefined)
@@ -216,8 +210,7 @@ function cacheStoreTests (CacheStore) {
       notEqual(writeStream, undefined)
       writeResponse(writeStream, requestBody, rawTrailers)
 
-      // Wait for redis to be written too & for it to expire
-      await setTimeoutAsync(500)
+      await once(writeStream, 'close')
 
       equal(await store.createReadStream(request), undefined)
     })
@@ -270,8 +263,7 @@ function cacheStoreTests (CacheStore) {
       notEqual(writeStream, undefined)
       writeResponse(writeStream, requestBody, requestTrailers)
 
-      // Wait for redis to be written too
-      await setTimeoutAsync(500)
+      await once(writeStream, 'close')
 
       const readStream = await store.createReadStream(structuredClone(request))
       notEqual(readStream, undefined)
@@ -329,7 +321,7 @@ function cacheStoreTests (CacheStore) {
     writeResponse(writeStream, [], [])
 
     // Wait for redis to be written too
-    await setTimeoutAsync(500)
+    await once(writeStream, 'close')
 
     const cachedRoutes = await store.getRoutes()
     deepStrictEqual(cachedRoutes, [
@@ -373,7 +365,7 @@ function cacheStoreTests (CacheStore) {
     writeResponse(writeStream, [], [])
 
     // Wait for redis to be written too
-    await setTimeoutAsync(500)
+    await once(writeStream, 'close')
 
     {
       const cachedRoutes = await store.getRoutes()
@@ -432,6 +424,9 @@ function cacheStoreTests (CacheStore) {
       // Write the response to the store
       const writeStream = store.createWriteStream(request, requestValue)
       writeResponse(writeStream, [], [])
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
     }
 
     {
@@ -457,6 +452,9 @@ function cacheStoreTests (CacheStore) {
       // Write the response to the store
       const writeStream = store.createWriteStream(request, requestValue)
       writeResponse(writeStream, [], [])
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
     }
 
     {
@@ -482,10 +480,10 @@ function cacheStoreTests (CacheStore) {
       // Write the response to the store
       const writeStream = store.createWriteStream(request, requestValue)
       writeResponse(writeStream, [], [])
-    }
 
-    // Wait for redis to be written too
-    await setTimeoutAsync(500)
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
+    }
 
     {
       const cachedRoutes = await store.getRoutes()
