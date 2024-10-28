@@ -1,6 +1,6 @@
 {
   "name": "@platformatic/undici-cache-redis",
-  "version": "1.0.0",
+  "version": "0.1.0-alpha.1",
   "description": "An Undici cache store with a Redis backend.",
   "main": "index.js",
   "directories": {
@@ -21,8 +21,8 @@
     "cache",
     "redis"
   ],
-  "author": "flakey5",
-  "license": "MIT",
+  "author": "Platformatic Inc. <oss@platformatic.dev> (https://platformatic.dev)",
+  "license": "Apache-2.0",
   "types": "./index.d.ts",
   "bugs": {
     "url": "https://github.com/platformatic/undici-cache-redis/issues"
