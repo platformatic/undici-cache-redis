@@ -1,3 +1,1 @@
-module.exports = {
-  RedisCacheStore: require('./lib/redis-cache-store')
-}
+module.exports = require('./lib/redis-cache-store')

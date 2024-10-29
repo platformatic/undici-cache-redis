@@ -284,6 +284,225 @@ function cacheStoreTests (CacheStore) {
       equal(await store.createReadStream(nonMatchingRequest), undefined)
     })
   })
+
+  test('returns cached values', async (t) => {
+    const request = {
+      origin: 'http://test-origin-1',
+      path: '/foo?bar=baz',
+      method: 'GET',
+      headers: {}
+    }
+    const requestValue = {
+      statusCode: 200,
+      statusMessage: '',
+      rawHeaders: [],
+      cachedAt: Date.now(),
+      staleAt: Date.now() + 10000,
+      deleteAt: Date.now() + 20000
+    }
+
+    const store = new CacheStore({
+      clientOpts: {
+        keyPrefix: `${crypto.randomUUID()}:`
+      },
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    await store.deleteByOrigin('http://test-origin-1')
+
+    // Write the response to the store
+    const writeStream = store.createWriteStream(request, requestValue)
+    writeResponse(writeStream, [], [])
+
+    // Wait for redis to be written too
+    await once(writeStream, 'close')
+
+    const cachedRoutes = await store.getRoutes()
+    deepStrictEqual(cachedRoutes, [
+      { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
+    ])
+  })
+
+  test('invalidates routes', async (t) => {
+    const request = {
+      origin: 'http://test-origin-1',
+      path: '/foo?bar=baz',
+      method: 'GET',
+      headers: {}
+    }
+    const requestValue = {
+      statusCode: 200,
+      statusMessage: '',
+      rawHeaders: [],
+      cachedAt: Date.now(),
+      staleAt: Date.now() + 10000,
+      deleteAt: Date.now() + 20000
+    }
+
+    const store = new CacheStore({
+      clientOpts: {
+        keyPrefix: `${crypto.randomUUID()}:`
+      },
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    await store.deleteByOrigin('http://test-origin-1')
+
+    // Write the response to the store
+    const writeStream = store.createWriteStream(request, requestValue)
+    writeResponse(writeStream, [], [])
+
+    // Wait for redis to be written too
+    await once(writeStream, 'close')
+
+    {
+      const cachedRoutes = await store.getRoutes()
+      deepStrictEqual(cachedRoutes, [
+        { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
+      ])
+    }
+
+    await store.deleteRoutes([
+      { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
+    ])
+
+    {
+      const cachedRoutes = await store.getRoutes()
+      deepStrictEqual(cachedRoutes, [])
+    }
+  })
+
+  test('invalidates routes by cache tag', async (t) => {
+    const store = new CacheStore({
+      cacheTagsHeader: 'cache-tag',
+      clientOpts: {
+        keyPrefix: `${crypto.randomUUID()}:`
+      },
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    await store.deleteByOrigin('http://test-origin-1')
+
+    {
+      const request = {
+        origin: 'http://test-origin-1',
+        path: '/foo-1?bar=baz',
+        method: 'GET',
+        headers: {
+          'cache-tag': 'tag1,tag2'
+        }
+      }
+      const requestValue = {
+        statusCode: 200,
+        statusMessage: '',
+        rawHeaders: [
+          Buffer.from('cache-tag'), Buffer.from('tag1,tag2')
+        ],
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      }
+
+      // Write the response to the store
+      const writeStream = store.createWriteStream(request, requestValue)
+      writeResponse(writeStream, [], [])
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
+    }
+
+    {
+      const request = {
+        origin: 'http://test-origin-1',
+        path: '/foo-2?bar=baz',
+        method: 'GET',
+        headers: {
+          'cache-tag': 'tag1,tag3'
+        }
+      }
+      const requestValue = {
+        statusCode: 200,
+        statusMessage: '',
+        rawHeaders: [
+          Buffer.from('cache-tag'), Buffer.from('tag1,tag3')
+        ],
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      }
+
+      // Write the response to the store
+      const writeStream = store.createWriteStream(request, requestValue)
+      writeResponse(writeStream, [], [])
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
+    }
+
+    {
+      const request = {
+        origin: 'http://test-origin-1',
+        path: '/foo-3?bar=baz',
+        method: 'GET',
+        headers: {
+          'cache-tag': 'tag3,tag4'
+        }
+      }
+      const requestValue = {
+        statusCode: 200,
+        statusMessage: '',
+        rawHeaders: [
+          Buffer.from('cache-tag'), Buffer.from('tag3,tag4')
+        ],
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      }
+
+      // Write the response to the store
+      const writeStream = store.createWriteStream(request, requestValue)
+      writeResponse(writeStream, [], [])
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
+    }
+
+    {
+      const cachedRoutes = await store.getRoutes()
+      deepStrictEqual(cachedRoutes.sort(sortRoutes), [
+        { method: 'GET', url: 'http://test-origin-1/foo-1?bar=baz' },
+        { method: 'GET', url: 'http://test-origin-1/foo-2?bar=baz' },
+        { method: 'GET', url: 'http://test-origin-1/foo-3?bar=baz' }
+      ])
+    }
+
+    await store.deleteByCacheTags('http://test-origin-1', ['tag1'])
+
+    {
+      const cachedRoutes = await store.getRoutes()
+      deepStrictEqual(cachedRoutes, [
+        { method: 'GET', url: 'http://test-origin-1/foo-3?bar=baz' }
+      ])
+    }
+  })
 }
 
 /**
@@ -316,4 +535,8 @@ async function readResponse (stream) {
     ...stream.value,
     body
   }
+}
+
+function sortRoutes (r1, r2) {
+  return r1.url.localeCompare(r2.url)
 }
