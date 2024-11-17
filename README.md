@@ -22,7 +22,7 @@ const client = new Client('http://localhost')
       
       // Optional, the max body size in bytes of a response to store. If a
       //  response's body size exceeds this, the response will not be cached.
-      maxEntrySize: Infinity
+      maxSize: Infinity
     })
   }))
 ```
