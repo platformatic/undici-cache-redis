@@ -133,7 +133,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['part1', 'part2']
 
       /**
-       * @type {import('../../types/cache-interceptor.d.ts').default.CacheStore}
+       * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -179,7 +179,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['part1', 'part2']
 
       /**
-       * @type {import('../../types/cache-interceptor.d.ts').default.CacheStore}
+       * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -226,7 +226,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['part1', 'part2']
 
       /**
-       * @type {import('../../types/cache-interceptor.d.ts').default.CacheStore}
+       * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -300,7 +300,7 @@ function cacheStoreTests (CacheStore) {
 
     // Write the response to the store
     const writeStream = store.createWriteStream(request, requestValue)
-    writeResponse(writeStream, [], [])
+    writeResponse(writeStream)
 
     // Wait for redis to be written too
     await once(writeStream, 'close')
@@ -342,7 +342,7 @@ function cacheStoreTests (CacheStore) {
 
     // Write the response to the store
     const writeStream = store.createWriteStream(request, requestValue)
-    writeResponse(writeStream, [], [])
+    writeResponse(writeStream)
 
     // Wait for redis to be written too
     await once(writeStream, 'close')
@@ -401,7 +401,7 @@ function cacheStoreTests (CacheStore) {
 
       // Write the response to the store
       const writeStream = store.createWriteStream(request, requestValue)
-      writeResponse(writeStream, [], [])
+      writeResponse(writeStream)
 
       // Wait for redis to be written too
       await once(writeStream, 'close')
@@ -429,7 +429,7 @@ function cacheStoreTests (CacheStore) {
 
       // Write the response to the store
       const writeStream = store.createWriteStream(request, requestValue)
-      writeResponse(writeStream, [], [])
+      writeResponse(writeStream)
 
       // Wait for redis to be written too
       await once(writeStream, 'close')
@@ -457,7 +457,7 @@ function cacheStoreTests (CacheStore) {
 
       // Write the response to the store
       const writeStream = store.createWriteStream(request, requestValue)
-      writeResponse(writeStream, [], [])
+      writeResponse(writeStream)
 
       // Wait for redis to be written too
       await once(writeStream, 'close')
@@ -487,7 +487,7 @@ function cacheStoreTests (CacheStore) {
  * @param {import('node:stream').Writable} stream
  * @param {string[]} body
  */
-function writeResponse (stream, body) {
+function writeResponse (stream, body = []) {
   for (const chunk of body) {
     stream.write(Buffer.from(chunk))
   }
