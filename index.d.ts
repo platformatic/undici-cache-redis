@@ -43,7 +43,7 @@ interface RedisStoreWritable extends Writable {
 interface CacheStoreValue {
   statusCode: number;
   statusMessage: string;
-  rawHeaders: (Buffer | Buffer[])[];
+  headers: Record<string, string | string[]>;
   rawTrailers?: string[];
   /**
    * Headers defined by the Vary header and their respective values for

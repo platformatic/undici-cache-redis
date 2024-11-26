@@ -34,7 +34,7 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -86,7 +86,7 @@ function cacheStoreTests (CacheStore) {
       const anotherValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -125,7 +125,7 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         cachedAt: Date.now() - 10000,
         staleAt: Date.now() - 1,
         deleteAt: Date.now() + 20000
@@ -215,7 +215,7 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         vary: {
           'some-header': 'hello world'
         },
@@ -279,7 +279,7 @@ function cacheStoreTests (CacheStore) {
     const requestValue = {
       statusCode: 200,
       statusMessage: '',
-      rawHeaders: [],
+      headers: {},
       cachedAt: Date.now(),
       staleAt: Date.now() + 10000,
       deleteAt: Date.now() + 20000
@@ -321,7 +321,7 @@ function cacheStoreTests (CacheStore) {
     const requestValue = {
       statusCode: 200,
       statusMessage: '',
-      rawHeaders: [],
+      headers: {},
       cachedAt: Date.now(),
       staleAt: Date.now() + 10000,
       deleteAt: Date.now() + 20000
@@ -391,9 +391,9 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [
-          Buffer.from('cache-tag'), Buffer.from('tag1,tag2')
-        ],
+        headers: {
+          'cache-tag': 'tag1,tag2'
+        },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -419,9 +419,9 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [
-          Buffer.from('cache-tag'), Buffer.from('tag1,tag3')
-        ],
+        headers: {
+          'cache-tag': 'tag1,tag3'
+        },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -447,9 +447,9 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [
-          Buffer.from('cache-tag'), Buffer.from('tag3,tag4')
-        ],
+        headers: {
+          'cache-tag': 'tag3,tag4'
+        },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
