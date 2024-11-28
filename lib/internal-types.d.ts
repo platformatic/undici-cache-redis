@@ -30,9 +30,7 @@ export interface CacheStore {
 
   delete(key: CacheKey): void | Promise<void>
 
-  getRoutes(): Route[] | Promise<Route[]>;
-
-  deleteRoutes(routes: Route[]): void | Promise<void>;
+  deleteKeys(keys: CacheKey[]): void | Promise<void>;
 }
 
 export interface CachedResponse {

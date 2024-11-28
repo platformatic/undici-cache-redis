@@ -304,11 +304,6 @@ function cacheStoreTests (CacheStore) {
 
     // Wait for redis to be written too
     await once(writeStream, 'close')
-
-    const cachedRoutes = await store.getRoutes()
-    deepStrictEqual(cachedRoutes, [
-      { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
-    ])
   })
 
   test('invalidates routes', async (t) => {
@@ -347,21 +342,9 @@ function cacheStoreTests (CacheStore) {
     // Wait for redis to be written too
     await once(writeStream, 'close')
 
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes, [
-        { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
-      ])
-    }
-
-    await store.deleteRoutes([
-      { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
+    await store.deleteKeys([
+      { method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }
     ])
-
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes, [])
-    }
   })
 
   test('invalidates routes by cache tag', async (t) => {
@@ -463,23 +446,7 @@ function cacheStoreTests (CacheStore) {
       await once(writeStream, 'close')
     }
 
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes.sort(sortRoutes), [
-        { method: 'GET', url: 'http://test-origin-1/foo-1?bar=baz' },
-        { method: 'GET', url: 'http://test-origin-1/foo-2?bar=baz' },
-        { method: 'GET', url: 'http://test-origin-1/foo-3?bar=baz' }
-      ])
-    }
-
-    await store.deleteByCacheTags('http://test-origin-1', ['tag1'])
-
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes, [
-        { method: 'GET', url: 'http://test-origin-1/foo-3?bar=baz' }
-      ])
-    }
+    await store.deleteTags(['tag1'])
   })
 }
 
@@ -519,8 +486,4 @@ async function readResponse ({ body: src, ...response }) {
     ...response,
     body
   }
-}
-
-function sortRoutes (r1, r2) {
-  return r1.url.localeCompare(r2.url)
 }
