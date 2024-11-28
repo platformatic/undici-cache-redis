@@ -30,15 +30,13 @@ export interface CacheStore {
 
   delete(key: CacheKey): void | Promise<void>
 
-  getRoutes(): Route[] | Promise<Route[]>;
-
-  deleteRoutes(routes: Route[]): void | Promise<void>;
+  deleteKeys(keys: CacheKey[]): void | Promise<void>;
 }
 
 export interface CachedResponse {
   statusCode: number;
   statusMessage: string;
-  rawHeaders?: Buffer[];
+  headers?: Record<string, string | string[]>
   /**
    * Headers defined by the Vary header and their respective values for
    *  later comparison

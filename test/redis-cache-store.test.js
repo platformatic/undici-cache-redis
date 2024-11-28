@@ -34,7 +34,7 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -86,7 +86,7 @@ function cacheStoreTests (CacheStore) {
       const anotherValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -125,7 +125,7 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         cachedAt: Date.now() - 10000,
         staleAt: Date.now() - 1,
         deleteAt: Date.now() + 20000
@@ -215,7 +215,7 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [Buffer.from('1'), Buffer.from('2'), Buffer.from('3')],
+        headers: { foo: 'bar' },
         vary: {
           'some-header': 'hello world'
         },
@@ -279,7 +279,7 @@ function cacheStoreTests (CacheStore) {
     const requestValue = {
       statusCode: 200,
       statusMessage: '',
-      rawHeaders: [],
+      headers: {},
       cachedAt: Date.now(),
       staleAt: Date.now() + 10000,
       deleteAt: Date.now() + 20000
@@ -304,11 +304,6 @@ function cacheStoreTests (CacheStore) {
 
     // Wait for redis to be written too
     await once(writeStream, 'close')
-
-    const cachedRoutes = await store.getRoutes()
-    deepStrictEqual(cachedRoutes, [
-      { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
-    ])
   })
 
   test('invalidates routes', async (t) => {
@@ -321,7 +316,7 @@ function cacheStoreTests (CacheStore) {
     const requestValue = {
       statusCode: 200,
       statusMessage: '',
-      rawHeaders: [],
+      headers: {},
       cachedAt: Date.now(),
       staleAt: Date.now() + 10000,
       deleteAt: Date.now() + 20000
@@ -347,21 +342,9 @@ function cacheStoreTests (CacheStore) {
     // Wait for redis to be written too
     await once(writeStream, 'close')
 
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes, [
-        { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
-      ])
-    }
-
-    await store.deleteRoutes([
-      { method: 'GET', url: 'http://test-origin-1/foo?bar=baz' }
+    await store.deleteKeys([
+      { method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }
     ])
-
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes, [])
-    }
   })
 
   test('invalidates routes by cache tag', async (t) => {
@@ -391,9 +374,9 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [
-          Buffer.from('cache-tag'), Buffer.from('tag1,tag2')
-        ],
+        headers: {
+          'cache-tag': 'tag1,tag2'
+        },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -419,9 +402,9 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [
-          Buffer.from('cache-tag'), Buffer.from('tag1,tag3')
-        ],
+        headers: {
+          'cache-tag': 'tag1,tag3'
+        },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -447,9 +430,9 @@ function cacheStoreTests (CacheStore) {
       const requestValue = {
         statusCode: 200,
         statusMessage: '',
-        rawHeaders: [
-          Buffer.from('cache-tag'), Buffer.from('tag3,tag4')
-        ],
+        headers: {
+          'cache-tag': 'tag3,tag4'
+        },
         cachedAt: Date.now(),
         staleAt: Date.now() + 10000,
         deleteAt: Date.now() + 20000
@@ -463,23 +446,7 @@ function cacheStoreTests (CacheStore) {
       await once(writeStream, 'close')
     }
 
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes.sort(sortRoutes), [
-        { method: 'GET', url: 'http://test-origin-1/foo-1?bar=baz' },
-        { method: 'GET', url: 'http://test-origin-1/foo-2?bar=baz' },
-        { method: 'GET', url: 'http://test-origin-1/foo-3?bar=baz' }
-      ])
-    }
-
-    await store.deleteByCacheTags('http://test-origin-1', ['tag1'])
-
-    {
-      const cachedRoutes = await store.getRoutes()
-      deepStrictEqual(cachedRoutes, [
-        { method: 'GET', url: 'http://test-origin-1/foo-3?bar=baz' }
-      ])
-    }
+    await store.deleteTags(['tag1'])
   })
 }
 
@@ -519,8 +486,4 @@ async function readResponse ({ body: src, ...response }) {
     ...response,
     body
   }
-}
-
-function sortRoutes (r1, r2) {
-  return r1.url.localeCompare(r2.url)
 }
