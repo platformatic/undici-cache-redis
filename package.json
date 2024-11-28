@@ -1,6 +1,6 @@
 {
   "name": "@platformatic/undici-cache-redis",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An Undici cache store with a Redis backend.",
   "main": "index.js",
   "directories": {
