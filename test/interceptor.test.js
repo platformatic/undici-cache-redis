@@ -199,3 +199,111 @@ test('invalidates response by cache key', async (t) => {
     assert.strictEqual(text, 'asd')
   }
 })
+
+test('invalidates other origin responses with the same cache tag / 2', async (t) => {
+  let requestsToOrigin = 0
+
+  const cacheTag = 'test-cache-tag-value-42'
+  const server = createServer((_, res) => {
+    requestsToOrigin++
+    res.setHeader('cache-control', 'public, s-maxage=10')
+    res.setHeader('cache-tag', cacheTag)
+    res.end('asd')
+  }).listen(0)
+
+  await once(server, 'listening')
+
+  const store = new RedisCacheStore({
+    cacheTagsHeader: 'cache-tag'
+  })
+
+  const origin = `http://localhost:${server.address().port}`
+  const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await store.close()
+    await client.close()
+  })
+
+  assert.strictEqual(requestsToOrigin, 0)
+
+  // Send initial request. This should reach the origin
+  let response = await client.request({
+    origin: 'localhost',
+    method: 'GET',
+    path: '/'
+  })
+  assert.strictEqual(requestsToOrigin, 1)
+  assert.strictEqual(await response.body.text(), 'asd')
+
+  await sleep(1000)
+
+  // Send second request that should be handled by cache
+  response = await client.request({
+    origin: 'localhost',
+    method: 'GET',
+    path: '/'
+  })
+  assert.strictEqual(requestsToOrigin, 1)
+  assert.strictEqual(await response.body.text(), 'asd')
+  assert.strictEqual(response.headers.age, '1')
+
+  // Send third request with different origin that should *not* be handled by cache
+  response = await client.request({
+    origin: 'my-other-origin',
+    method: 'GET',
+    path: '/'
+  })
+  assert.strictEqual(requestsToOrigin, 2)
+  assert.strictEqual(await response.body.text(), 'asd')
+
+  await sleep(1000)
+
+  // Send fourth request that should be handled by cache
+  response = await client.request({
+    origin: 'my-other-origin',
+    method: 'GET',
+    path: '/'
+  })
+  assert.strictEqual(requestsToOrigin, 2)
+  assert.strictEqual(await response.body.text(), 'asd')
+  assert.strictEqual(response.headers.age, '1')
+
+  await store.deleteKeys([{
+    origin: 'localhost',
+    method: 'GET',
+    path: '/'
+  }])
+
+  // Send fifth request that should reach the origin again
+  response = await client.request({
+    origin: 'localhost',
+    method: 'GET',
+    path: '/'
+  })
+  assert.strictEqual(requestsToOrigin, 3)
+  assert.strictEqual(await response.body.text(), 'asd')
+
+  await sleep(1000)
+
+  // Send sixth request with different origin that should *not* be handled by cache
+  response = await client.request({
+    origin: 'my-other-origin',
+    method: 'GET',
+    path: '/'
+  })
+  assert.strictEqual(requestsToOrigin, 4)
+  assert.strictEqual(await response.body.text(), 'asd')
+
+  await sleep(1000)
+
+  // Send seventh request with different origin that should be handled by cache
+  response = await client.request({
+    origin: 'my-other-origin',
+    method: 'GET',
+    path: '/'
+  })
+  assert.strictEqual(requestsToOrigin, 4)
+  assert.strictEqual(await response.body.text(), 'asd')
+})
