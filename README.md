@@ -26,7 +26,3 @@ const client = new Client('http://localhost')
     })
   }))
 ```
-
-## License
-
-This repository is licensed under the [MIT License](./LICENSE).

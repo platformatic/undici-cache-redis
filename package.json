@@ -21,8 +21,8 @@
     "cache",
     "redis"
   ],
-  "author": "Platformatic Inc. <oss@platformatic.dev> (https://platformatic.dev)",
-  "license": "Apache-2.0",
+  "author": "Platformatic Inc. <info@platformatic.dev> (https://platformatichq.com)",
+  "license": "UNLICENSED",
   "types": "./index.d.ts",
   "bugs": {
     "url": "https://github.com/platformatic/undici-cache-redis/issues"
