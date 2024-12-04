@@ -2,8 +2,6 @@
 'use strict'
 
 const { test, beforeEach } = require('node:test')
-const { deepStrictEqual, notEqual, equal, fail } = require('node:assert')
-const { Readable } = require('node:stream')
 const { once } = require('node:events')
 const { setTimeout: sleep } = require('node:timers/promises')
 const RedisCacheStore = require('../lib/redis-cache-store')
@@ -26,7 +24,7 @@ for (const maxAgeHeader of ['s-maxage', 'max-age']) {
       if (req.headers['if-none-match']) {
         revalidationRequests++
         if (req.headers['if-none-match'] !== '"asd"') {
-          fail(`etag mismatch: ${req.headers['if-none-match']}`)
+          t.assert.fail(`etag mismatch: ${req.headers['if-none-match']}`)
         }
 
         res.statusCode = 304
