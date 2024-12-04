@@ -114,3 +114,89 @@ for (const maxAgeHeader of ['s-maxage', 'max-age']) {
     }
   })
 }
+
+test('stale-if-error from response works as expected', async (t) => {
+  const store = new RedisCacheStore()
+
+  let requestsToOrigin = 0
+  const server = createServer((_, res) => {
+    requestsToOrigin++
+    if (requestsToOrigin === 1) {
+      // First request
+      res.setHeader('cache-control', 'public, s-maxage=4, stale-if-error=4')
+      res.end('asd')
+    } else {
+      res.statusCode = 500
+      res.end('')
+    }
+  }).listen(0)
+
+  const client = new Client(`http://localhost:${server.address().port}`)
+    .compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await client.close()
+    await store.close()
+  })
+
+  await once(server, 'listening')
+
+  t.assert.strictEqual(requestsToOrigin, 0)
+
+  // Send first request. This will hit the origin and succeed
+  {
+    const response = await client.request({
+      origin: 'localhost',
+      path: '/',
+      method: 'GET'
+    })
+    t.assert.equal(requestsToOrigin, 1)
+    t.assert.equal(response.statusCode, 200)
+    t.assert.equal(await response.body.text(), 'asd')
+  }
+
+  await sleep(500)
+
+  // Send second request. It isn't stale yet, so this should be from the
+  //  cache and succeed
+  {
+    const response = await client.request({
+      origin: 'localhost',
+      path: '/',
+      method: 'GET'
+    })
+    t.assert.equal(requestsToOrigin, 1)
+    t.assert.equal(response.statusCode, 200)
+    t.assert.equal(await response.body.text(), 'asd')
+  }
+
+  await sleep(5000)
+
+  // Send third request. This is now stale, the revalidation request should
+  //  fail but the response should still be served from cache.
+  {
+    const response = await client.request({
+      origin: 'localhost',
+      path: '/',
+      method: 'GET'
+    })
+    t.assert.equal(requestsToOrigin, 2)
+    t.assert.equal(response.statusCode, 200)
+    t.assert.equal(await response.body.text(), 'asd')
+  }
+
+  await sleep(5000)
+
+  // Send fourth request. We're now outside the stale-if-error threshold and
+  //  should see the error.
+  {
+    const response = await client.request({
+      origin: 'localhost',
+      path: '/',
+      method: 'GET'
+    })
+    t.assert.equal(requestsToOrigin, 3)
+    t.assert.equal(response.statusCode, 500)
+  }
+})
