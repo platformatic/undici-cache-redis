@@ -68,7 +68,7 @@ for (const maxAgeHeader of ['s-maxage', 'max-age']) {
 
     // We need to sleep for a bit to let the cache entry
     // be saved in Valkey
-    await sleep(500)
+    await once(store, 'write')
 
     // Send second request, this will be cached.
     {
@@ -156,7 +156,7 @@ test('stale-if-error from response works as expected', async (t) => {
     t.assert.equal(await response.body.text(), 'asd')
   }
 
-  await sleep(500)
+  await once(store, 'write')
 
   // Send second request. It isn't stale yet, so this should be from the
   //  cache and succeed
