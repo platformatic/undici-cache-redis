@@ -2,10 +2,11 @@
 'use strict'
 
 const { describe, test } = require('node:test')
-const { deepStrictEqual, notEqual, equal, fail } = require('node:assert')
+const { strictEqual, deepStrictEqual, notEqual, equal, fail } = require('node:assert')
 const { Readable } = require('node:stream')
 const { once } = require('node:events')
 const RedisCacheStore = require('../lib/redis-cache-store')
+const { getAllKeys, cleanValkey } = require('./helper.js')
 
 cacheStoreTests(RedisCacheStore)
 
@@ -25,6 +26,8 @@ function cacheStoreTests (CacheStore) {
 
     // Checks that it can store & fetch different responses
     test('basic functionality', async (t) => {
+      await cleanValkey()
+
       const request = {
         origin: 'localhost',
         path: '/',
@@ -116,6 +119,8 @@ function cacheStoreTests (CacheStore) {
     })
 
     test('returns stale response if possible', async (t) => {
+      await cleanValkey()
+
       const request = {
         origin: 'localhost',
         path: '/',
@@ -163,6 +168,8 @@ function cacheStoreTests (CacheStore) {
     })
 
     test('doesn\'t return response past deletedAt', async (t) => {
+      await cleanValkey()
+
       const request = {
         origin: 'localhost',
         path: '/',
@@ -204,6 +211,8 @@ function cacheStoreTests (CacheStore) {
     })
 
     test('respects vary directives', async (t) => {
+      await cleanValkey()
+
       const request = {
         origin: 'localhost',
         path: '/',
@@ -270,6 +279,8 @@ function cacheStoreTests (CacheStore) {
   })
 
   test('returns cached values', async (t) => {
+    await cleanValkey()
+
     const request = {
       origin: 'http://test-origin-1',
       path: '/foo?bar=baz',
@@ -307,6 +318,8 @@ function cacheStoreTests (CacheStore) {
   })
 
   test('invalidates routes', async (t) => {
+    await cleanValkey()
+
     const request = {
       origin: 'http://test-origin-1',
       path: '/foo?bar=baz',
@@ -342,12 +355,77 @@ function cacheStoreTests (CacheStore) {
     // Wait for redis to be written too
     await once(writeStream, 'close')
 
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 3)
+    }
+
     await store.deleteKeys([
       { method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }
     ])
+
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 0)
+    }
+  })
+
+  test('invalidates routes by ids', async (t) => {
+    await cleanValkey()
+
+    const request = {
+      origin: 'http://test-origin-1',
+      path: '/foo?bar=baz',
+      method: 'GET',
+      headers: {}
+    }
+    const requestValue = {
+      statusCode: 200,
+      statusMessage: '',
+      headers: {},
+      cachedAt: Date.now(),
+      staleAt: Date.now() + 10000,
+      deleteAt: Date.now() + 20000
+    }
+
+    const store = new CacheStore({
+      clientOpts: {
+        keyPrefix: `${crypto.randomUUID()}:`
+      },
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    // Write the response to the store
+    const writeStream = store.createWriteStream(request, requestValue)
+    writeResponse(writeStream)
+
+    // Wait for redis to be written too
+    await once(writeStream, 'close')
+
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 3)
+    }
+
+    await store.deleteKeys([
+      { method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }
+    ])
+
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 0)
+    }
   })
 
   test('invalidates routes by cache tag', async (t) => {
+    await cleanValkey()
+
     const store = new CacheStore({
       cacheTagsHeader: 'cache-tag',
       clientOpts: {
@@ -446,7 +524,17 @@ function cacheStoreTests (CacheStore) {
       await once(writeStream, 'close')
     }
 
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 15)
+    }
+
     await store.deleteTags(['tag1'])
+
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 0)
+    }
   })
 }
 
