@@ -187,7 +187,6 @@ test('should notify when invalidates response by cache key', async (t) => {
 
   const deletedEntries = []
   store.on('delete-entry', (key) => {
-    process._rawDebug('-----------EVENT---------', key)
     deletedEntries.push(key)
   })
 
@@ -221,6 +220,75 @@ test('should notify when invalidates response by cache key', async (t) => {
 
   // Wait for redis to emit the event
   await sleep(1000)
+
+  assert.strictEqual(addedEntries.length, 1)
+  assert.strictEqual(deletedEntries.length, 1)
+
+  const addedEntry = addedEntries[0]
+  assert.ok(addedEntry.id)
+
+  const deletedEntry = deletedEntries[0]
+  assert.ok(deletedEntry.id)
+  assert.strictEqual(deletedEntry.keyPrefix, keyPrefix)
+
+  assert.strictEqual(deletedEntry.id, addedEntry.id)
+})
+
+test('should notify when cache entry expires', async (t) => {
+  await cleanValkey()
+
+  let requestsToOrigin = 0
+
+  const server = createServer((_, res) => {
+    requestsToOrigin++
+    res.setHeader('cache-control', 'public, s-maxage=1')
+    res.end('asd')
+  }).listen(0)
+
+  await once(server, 'listening')
+
+  const keyPrefix = 'foo:bar:'
+  const store = new RedisCacheStore({
+    cacheTagsHeader: 'cache-tag',
+    clientOpts: { keyPrefix }
+  })
+  await store.subscribe()
+
+  const addedEntries = []
+  store.on('add-entry', (entry) => {
+    addedEntries.push(entry)
+  })
+
+  const deletedEntries = []
+  store.on('delete-entry', (key) => {
+    deletedEntries.push(key)
+  })
+
+  const origin = `http://localhost:${server.address().port}`
+  const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await store.close()
+    await client.close()
+  })
+
+  assert.strictEqual(requestsToOrigin, 0)
+
+  {
+    // Send initial request. This should reach the origin
+    const { statusCode, body } = await client.request({
+      origin, method: 'GET', path: '/'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 1)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+
+  // Wait for cache to expire
+  await sleep(5000)
 
   assert.strictEqual(addedEntries.length, 1)
   assert.strictEqual(deletedEntries.length, 1)
