@@ -6,7 +6,7 @@ const { setTimeout: sleep } = require('node:timers/promises')
 const { createServer } = require('node:http')
 const { once } = require('node:events')
 const { Client, interceptors } = require('undici')
-const RedisCacheStore = require('../index.js')
+const { RedisCacheStore, RedisCacheManager } = require('../index.js')
 const { cleanValkey } = require('./helper.js')
 
 test('should notify when a new key is added', async (t) => {
@@ -22,14 +22,14 @@ test('should notify when a new key is added', async (t) => {
 
   await once(server, 'listening')
 
-  const keyPrefix = 'foo:bar:'
-  const store = new RedisCacheStore({ clientOpts: { keyPrefix } })
-  await store.subscribe()
+  const manager = new RedisCacheManager()
+  await manager.subscribe()
 
   const entries = []
-  store.on('add-entry', (entry) => {
-    entries.push(entry)
-  })
+  manager.on('add-entry', entry => entries.push(entry))
+
+  const keyPrefix = 'foo:bar:'
+  const store = new RedisCacheStore({ clientOpts: { keyPrefix } })
 
   const origin = `http://localhost:${server.address().port}`
   const client = new Client(origin).compose(interceptors.cache({ store }))
@@ -38,6 +38,7 @@ test('should notify when a new key is added', async (t) => {
     server.close()
     await store.close()
     await client.close()
+    await manager.close()
   })
 
   assert.strictEqual(requestsToOrigin, 0)
@@ -92,28 +93,27 @@ test('should notify when invalidates response by cache tag', async (t) => {
   const cacheTag = 'test-cache-tag-value-42'
   const server = createServer((_, res) => {
     requestsToOrigin++
-    res.setHeader('cache-control', 'public, s-maxage=10')
+    res.setHeader('cache-control', 'public, s-maxage=100')
     res.setHeader('cache-tag', cacheTag)
     res.end('asd')
   }).listen(0)
 
   await once(server, 'listening')
 
+  const manager = new RedisCacheManager()
+
+  const addedEntries = []
+  manager.on('add-entry', entry => addedEntries.push(entry))
+
+  const deletedEntries = []
+  manager.on('delete-entry', entry => deletedEntries.push(entry))
+
+  await manager.subscribe()
+
   const keyPrefix = 'foo:bar:'
   const store = new RedisCacheStore({
     cacheTagsHeader: 'cache-tag',
     clientOpts: { keyPrefix }
-  })
-  await store.subscribe()
-
-  const addedEntries = []
-  store.on('add-entry', (entry) => {
-    addedEntries.push(entry)
-  })
-
-  const deletedEntries = []
-  store.on('delete-entry', (key) => {
-    deletedEntries.push(key)
   })
 
   const origin = `http://localhost:${server.address().port}`
@@ -123,6 +123,7 @@ test('should notify when invalidates response by cache tag', async (t) => {
     server.close()
     await store.close()
     await client.close()
+    await manager.close()
   })
 
   assert.strictEqual(requestsToOrigin, 0)
@@ -173,21 +174,23 @@ test('should notify when invalidates response by cache key', async (t) => {
 
   await once(server, 'listening')
 
-  const keyPrefix = 'foo:bar:'
-  const store = new RedisCacheStore({
-    cacheTagsHeader: 'cache-tag',
-    clientOpts: { keyPrefix }
-  })
-  await store.subscribe()
+  const manager = new RedisCacheManager()
+  await manager.subscribe()
 
   const addedEntries = []
-  store.on('add-entry', (entry) => {
+  manager.on('add-entry', (entry) => {
     addedEntries.push(entry)
   })
 
   const deletedEntries = []
-  store.on('delete-entry', (key) => {
+  manager.on('delete-entry', (key) => {
     deletedEntries.push(key)
+  })
+
+  const keyPrefix = 'foo:bar:'
+  const store = new RedisCacheStore({
+    cacheTagsHeader: 'cache-tag',
+    clientOpts: { keyPrefix }
   })
 
   const origin = `http://localhost:${server.address().port}`
@@ -197,6 +200,7 @@ test('should notify when invalidates response by cache key', async (t) => {
     server.close()
     await store.close()
     await client.close()
+    await manager.close()
   })
 
   assert.strictEqual(requestsToOrigin, 0)
@@ -247,21 +251,23 @@ test('should notify when cache entry expires', async (t) => {
 
   await once(server, 'listening')
 
-  const keyPrefix = 'foo:bar:'
-  const store = new RedisCacheStore({
-    cacheTagsHeader: 'cache-tag',
-    clientOpts: { keyPrefix }
-  })
-  await store.subscribe()
+  const manager = new RedisCacheManager()
+  await manager.subscribe()
 
   const addedEntries = []
-  store.on('add-entry', (entry) => {
+  manager.on('add-entry', (entry) => {
     addedEntries.push(entry)
   })
 
   const deletedEntries = []
-  store.on('delete-entry', (key) => {
+  manager.on('delete-entry', (key) => {
     deletedEntries.push(key)
+  })
+
+  const keyPrefix = 'foo:bar:'
+  const store = new RedisCacheStore({
+    cacheTagsHeader: 'cache-tag',
+    clientOpts: { keyPrefix }
   })
 
   const origin = `http://localhost:${server.address().port}`
@@ -271,6 +277,7 @@ test('should notify when cache entry expires', async (t) => {
     server.close()
     await store.close()
     await client.close()
+    await manager.close()
   })
 
   assert.strictEqual(requestsToOrigin, 0)

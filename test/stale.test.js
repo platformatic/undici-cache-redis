@@ -4,7 +4,7 @@
 const { test, beforeEach } = require('node:test')
 const { once } = require('node:events')
 const { setTimeout: sleep } = require('node:timers/promises')
-const RedisCacheStore = require('../lib/redis-cache-store')
+const { RedisCacheStore } = require('../lib/redis-cache-store')
 const { createServer } = require('node:http')
 const { Client, interceptors } = require('undici')
 const { Redis } = require('iovalkey')
