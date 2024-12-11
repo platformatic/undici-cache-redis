@@ -9,7 +9,7 @@ const { Client, interceptors } = require('undici')
 const { RedisCacheStore, RedisCacheManager } = require('../index.js')
 const { cleanValkey } = require('./helper.js')
 
-test('should stream all cache entries', async (t) => {
+test('should stream cache entries', async (t) => {
   await cleanValkey()
 
   let requestsToOrigin = 0
@@ -71,7 +71,18 @@ test('should stream all cache entries', async (t) => {
   const foundEntries = []
   await manager.streamEntries((entries) => {
     foundEntries.push(...entries)
-  })
+  }, 'foo:bar:1:')
 
-  assert.strictEqual(foundEntries.length, 2)
+  assert.strictEqual(foundEntries.length, 1)
+
+  const foundEntry = foundEntries[0]
+  assert.strictEqual(foundEntry.keyPrefix, 'foo:bar:1:')
+  assert.strictEqual(foundEntry.origin, origin)
+  assert.strictEqual(foundEntry.method, 'GET')
+  assert.strictEqual(foundEntry.path, '/')
+  assert.strictEqual(typeof foundEntry.id, 'string')
+  assert.strictEqual(typeof foundEntry.headers, 'object')
+  assert.strictEqual(typeof foundEntry.cachedAt, 'number')
+  assert.strictEqual(typeof foundEntry.staleAt, 'number')
+  assert.strictEqual(typeof foundEntry.deleteAt, 'number')
 })
