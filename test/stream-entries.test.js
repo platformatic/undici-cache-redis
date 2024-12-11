@@ -69,9 +69,7 @@ test('should stream cache entries', async (t) => {
   t.after(() => manager.close())
 
   const foundEntries = []
-  await manager.streamEntries((entries) => {
-    foundEntries.push(...entries)
-  }, 'foo:bar:1:')
+  await manager.streamEntries(entry => foundEntries.push(entry), 'foo:bar:1:')
 
   assert.strictEqual(foundEntries.length, 1)
 
