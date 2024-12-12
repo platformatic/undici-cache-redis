@@ -1,6 +1,6 @@
-import { Readable, Writable } from "node:stream";
+import { Writable } from "node:stream";
 import { RedisOptions } from "iovalkey";
-import { Dispatcher } from "undici";
+import { GetResult, CacheKey, CachedResponse } from "./lib/internal-types";
 
 export interface RedisCacheStoreOpts {
   clientOpts?: RedisOptions
@@ -19,52 +19,57 @@ export interface RedisCacheStoreOpts {
   errorCallback?: (err: Error) => void
 }
 
+export interface RedisCacheManagerOpts {
+  clientOpts?: RedisOptions
+}
+
 declare class RedisCacheStore {
   constructor(opts?: RedisCacheStoreOpts);
 
-  get isFull(): boolean
+  get(key: CacheKey): Promise<GetResult | undefined>
+
+  createWriteStream(key: CacheKey, value: CachedResponse): Writable
+
+  delete(key: CacheKey): Promise<void>
+
+  deleteKeys(keys: CacheKey[]): Promise<void>
+
+  deleteTags(tags: string[]): Promise<void>
 
   close(): Promise<void>
-
-  createReadStream(req: Dispatcher.RequestOptions): Promise<RedisStoreReadable | undefined>
-
-  createWriteStream(req: Dispatcher.RequestOptions, opts: CacheStoreValue): RedisStoreWritable | undefined
 }
 
-interface RedisStoreReadable extends Readable {
-  get value(): CacheStoreValue
-}
-
-interface RedisStoreWritable extends Writable {
-  set rawTrailers(trailers: string[] | undefined)
-}
-
-// TODO: remove when there's a type upstream
-interface CacheStoreValue {
+export interface CacheEntry {
+  id: string;
+  keyPrefix: string;
+  origin: string;
+  path: string;
+  method: string;
   statusCode: number;
-  statusMessage: string;
   headers: Record<string, string | string[]>;
-  rawTrailers?: string[];
-  /**
-   * Headers defined by the Vary header and their respective values for
-   *  later comparison
-   */
-  vary?: Record<string, string>;
-  /**
-   * Time in millis that this value was cached
-   */
   cachedAt: number;
-  /**
-   * Time in millis that this value is considered stale
-   */
   staleAt: number;
-  /**
-   * Time in millis that this value is to be deleted from the cache. This is
-   *  either the same as staleAt or the `max-stale` caching directive.
-   */
   deleteAt: number;
 }
 
+declare class RedisCacheManager {
+  constructor(opts?: RedisCacheManagerOpts);
+
+  streamEntries(
+    callback: (entry: CacheEntry) => Promise<unknown> | unknown,
+    keyPrefix: string,
+  ): Promise<void>
+
+  subscribe(): Promise<void>
+
+  getResponseById(id: string, keyPrefix: string): Promise<string | null>
+
+  deleteIds (ids: string[], keyPrefix: string): Promise<void>
+
+  close(): Promise<void>
+}
+
 export {
-  RedisCacheStore
+  RedisCacheStore,
+  RedisCacheManager
 }
