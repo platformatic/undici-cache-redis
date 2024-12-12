@@ -307,3 +307,167 @@ test('invalidates other origin responses with the same cache tag / 2', async (t)
   assert.strictEqual(requestsToOrigin, 4)
   assert.strictEqual(await response.body.text(), 'asd')
 })
+
+test('invalidates GET cache by making POST to the same url', async (t) => {
+  let requestsToOrigin = 0
+
+  const server = createServer((_, res) => {
+    requestsToOrigin++
+    res.setHeader('cache-control', 'public, s-maxage=20')
+    res.end('asd')
+  }).listen(0)
+
+  await once(server, 'listening')
+
+  const store = new RedisCacheStore({
+    cacheTagsHeader: 'cache-tag'
+  })
+
+  const origin = `http://localhost:${server.address().port}`
+  const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await store.close()
+    await client.close()
+  })
+
+  assert.strictEqual(requestsToOrigin, 0)
+
+  {
+    // Send initial request. This should reach the origin
+    const { statusCode, body } = await client.request({
+      origin, method: 'GET', path: '/foo'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 1)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+
+  // Wait for redis to save the response
+  await sleep(1000)
+
+  {
+    // Send second request that should be handled by cache
+    const { statusCode, body, headers } = await client.request({
+      origin, method: 'GET', path: '/foo'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 1)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+    assert.strictEqual(headers.age, '1')
+  }
+
+  {
+    // Send POST request that should invalidate the cache
+    const { statusCode, body } = await client.request({
+      origin, method: 'POST', path: '/foo'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 2)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+
+  // Wait for redis to invalidate the cache
+  await sleep(1000)
+
+  {
+    // Send third request that should reach the origin again
+    const { statusCode, body } = await client.request({
+      origin, method: 'GET', path: '/foo'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 3)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+})
+
+test('should not invalidate GET cache by making POST to the _different_ url', async (t) => {
+  let requestsToOrigin = 0
+
+  const server = createServer((_, res) => {
+    requestsToOrigin++
+    res.setHeader('cache-control', 'public, s-maxage=20')
+    res.end('asd')
+  }).listen(0)
+
+  await once(server, 'listening')
+
+  const store = new RedisCacheStore({
+    cacheTagsHeader: 'cache-tag'
+  })
+
+  const origin = `http://localhost:${server.address().port}`
+  const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await store.close()
+    await client.close()
+  })
+
+  assert.strictEqual(requestsToOrigin, 0)
+
+  {
+    // Send initial request. This should reach the origin
+    const { statusCode, body } = await client.request({
+      origin, method: 'GET', path: '/foo'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 1)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+
+  // Wait for redis to save the response
+  await sleep(1000)
+
+  {
+    // Send second request that should be handled by cache
+    const { statusCode, body, headers } = await client.request({
+      origin, method: 'GET', path: '/foo'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 1)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+    assert.strictEqual(headers.age, '1')
+  }
+
+  {
+    // Send POST request that should invalidate the cache
+    const { statusCode, body } = await client.request({
+      origin, method: 'POST', path: '/bar'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 2)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+
+  // Wait for redis to invalidate the cache
+  await sleep(1000)
+
+  {
+    // Send third request that should reach the origin again
+    const { statusCode, body } = await client.request({
+      origin, method: 'GET', path: '/foo'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 2)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+})

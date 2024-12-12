@@ -5,7 +5,7 @@ const { describe, test } = require('node:test')
 const { strictEqual, deepStrictEqual, notEqual, equal, fail } = require('node:assert')
 const { Readable } = require('node:stream')
 const { once } = require('node:events')
-const RedisCacheStore = require('../lib/redis-cache-store')
+const { RedisCacheStore } = require('../lib/redis-cache-store')
 const { getAllKeys, cleanValkey } = require('./helper.js')
 
 cacheStoreTests(RedisCacheStore)
@@ -317,7 +317,7 @@ function cacheStoreTests (CacheStore) {
     await once(writeStream, 'close')
   })
 
-  test('invalidates routes', async (t) => {
+  test('invalidates cache by cache keys', async (t) => {
     await cleanValkey()
 
     const request = {
@@ -370,7 +370,7 @@ function cacheStoreTests (CacheStore) {
     }
   })
 
-  test('invalidates routes by ids', async (t) => {
+  test('invalidates cache by ids', async (t) => {
     await cleanValkey()
 
     const request = {
@@ -423,7 +423,7 @@ function cacheStoreTests (CacheStore) {
     }
   })
 
-  test('invalidates routes by cache tag', async (t) => {
+  test('invalidates cache by cache tag', async (t) => {
     await cleanValkey()
 
     const store = new CacheStore({
