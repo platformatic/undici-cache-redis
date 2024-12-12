@@ -1,3 +1,5 @@
+import { Writable, Readable } from "node:stream";
+
 // TODO: delete this file when the types land in v7
 
 export interface CacheKey {
