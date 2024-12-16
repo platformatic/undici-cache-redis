@@ -2,7 +2,7 @@
 'use strict'
 
 const { describe, test } = require('node:test')
-const { strictEqual, deepStrictEqual, notEqual, equal, fail } = require('node:assert')
+const { strictEqual, deepStrictEqual, notEqual, equal, fail, ok } = require('node:assert')
 const { Readable } = require('node:stream')
 const { once } = require('node:events')
 const { RedisCacheStore } = require('../lib/redis-cache-store')
@@ -423,6 +423,125 @@ function cacheStoreTests (CacheStore) {
     }
   })
 
+  test('invalidates cache by combined cache tag', async (t) => {
+    await cleanValkey()
+
+    const store = new CacheStore({
+      cacheTagsHeader: 'cache-tag',
+      clientOpts: {
+        keyPrefix: `${crypto.randomUUID()}:`
+      },
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    {
+      const request = {
+        origin: 'http://test-origin-1',
+        path: '/foo-1?bar=baz',
+        method: 'GET',
+        headers: {
+          'cache-tag': 'tag1,tag2'
+        }
+      }
+      const requestValue = {
+        statusCode: 200,
+        statusMessage: '',
+        headers: {
+          'cache-tag': 'tag1,tag2'
+        },
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      }
+
+      // Write the response to the store
+      const writeStream = store.createWriteStream(request, requestValue)
+      writeResponse(writeStream)
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
+    }
+
+    {
+      const request = {
+        origin: 'http://test-origin-1',
+        path: '/foo-2?bar=baz',
+        method: 'GET',
+        headers: {
+          'cache-tag': 'tag1,tag2,tag3'
+        }
+      }
+      const requestValue = {
+        statusCode: 200,
+        statusMessage: '',
+        headers: {
+          'cache-tag': 'tag1,tag2,tag3'
+        },
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      }
+
+      // Write the response to the store
+      const writeStream = store.createWriteStream(request, requestValue)
+      writeResponse(writeStream)
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
+    }
+
+    {
+      const request = {
+        origin: 'http://test-origin-1',
+        path: '/foo-3?bar=baz',
+        method: 'GET',
+        headers: {
+          'cache-tag': 'tag1,tag3'
+        }
+      }
+      const requestValue = {
+        statusCode: 200,
+        statusMessage: '',
+        headers: {
+          'cache-tag': 'tag1,tag3'
+        },
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      }
+
+      // Write the response to the store
+      const writeStream = store.createWriteStream(request, requestValue)
+      writeResponse(writeStream)
+
+      // Wait for redis to be written too
+      await once(writeStream, 'close')
+    }
+
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 12)
+    }
+
+    await store.deleteTags([['tag1', 'tag2']])
+
+    {
+      const keys = await getAllKeys()
+      strictEqual(keys.length, 4)
+
+      const tagsKeys = keys.filter(key => key.includes('cache-tags'))
+      strictEqual(tagsKeys.length, 1)
+
+      ok(tagsKeys[0].includes('tag1:tag3'))
+    }
+  })
+
   test('invalidates cache by cache tag', async (t) => {
     await cleanValkey()
 
@@ -526,10 +645,10 @@ function cacheStoreTests (CacheStore) {
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 15)
+      strictEqual(keys.length, 12)
     }
 
-    await store.deleteTags(['tag1'])
+    await store.deleteTags(['tag1', 'tag4'])
 
     {
       const keys = await getAllKeys()
