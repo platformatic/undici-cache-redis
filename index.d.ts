@@ -47,6 +47,7 @@ export interface CacheEntry {
   method: string;
   statusCode: number;
   headers: Record<string, string | string[]>;
+  cacheTags: string[];
   cachedAt: number;
   staleAt: number;
   deleteAt: number;
@@ -63,6 +64,8 @@ declare class RedisCacheManager {
   subscribe(): Promise<void>
 
   getResponseById(id: string, keyPrefix: string): Promise<string | null>
+
+  getDependentEntries(id: string, keyPrefix: string): Promise<CacheEntry[]>
 
   deleteIds (ids: string[], keyPrefix: string): Promise<void>
 

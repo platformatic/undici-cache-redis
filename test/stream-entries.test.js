@@ -17,6 +17,7 @@ test('should stream cache entries', async (t) => {
   const server = createServer((_, res) => {
     requestsToOrigin++
     res.setHeader('cache-control', 'public, s-maxage=10')
+    res.setHeader('x-cache-tags', 'tag1,tag2')
     res.end('asd')
   }).listen(0)
 
@@ -28,7 +29,10 @@ test('should stream cache entries', async (t) => {
   {
     // Make a request from the first client
     const keyPrefix = 'foo:bar:1:'
-    const store = new RedisCacheStore({ clientOpts: { keyPrefix } })
+    const store = new RedisCacheStore({
+      clientOpts: { keyPrefix },
+      cacheTagsHeader: 'x-cache-tags'
+    })
     const client = new Client(origin).compose(interceptors.cache({ store }))
 
     t.after(async () => {
@@ -78,6 +82,7 @@ test('should stream cache entries', async (t) => {
   assert.strictEqual(foundEntry.origin, origin)
   assert.strictEqual(foundEntry.method, 'GET')
   assert.strictEqual(foundEntry.path, '/')
+  assert.deepStrictEqual(foundEntry.cacheTags, ['tag1', 'tag2'])
   assert.strictEqual(typeof foundEntry.id, 'string')
   assert.strictEqual(typeof foundEntry.headers, 'object')
   assert.strictEqual(typeof foundEntry.cachedAt, 'number')
