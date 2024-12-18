@@ -17,6 +17,7 @@ test('should notify when a new key is added', async (t) => {
   const server = createServer((_, res) => {
     requestsToOrigin++
     res.setHeader('cache-control', 'public, s-maxage=10')
+    res.setHeader('x-cache-tags', 'tag1,tag2')
     res.end('asd')
   }).listen(0)
 
@@ -29,7 +30,10 @@ test('should notify when a new key is added', async (t) => {
   manager.on('add-entry', entry => entries.push(entry))
 
   const keyPrefix = 'foo:bar:'
-  const store = new RedisCacheStore({ clientOpts: { keyPrefix } })
+  const store = new RedisCacheStore({
+    clientOpts: { keyPrefix },
+    cacheTagsHeader: 'x-cache-tags'
+  })
 
   const origin = `http://localhost:${server.address().port}`
   const client = new Client(origin).compose(interceptors.cache({ store }))
@@ -80,6 +84,7 @@ test('should notify when a new key is added', async (t) => {
   assert.strictEqual(newEntry.path, '/')
   assert.strictEqual(newEntry.method, 'GET')
   assert.strictEqual(newEntry.statusCode, 200)
+  assert.deepStrictEqual(newEntry.cacheTags, ['tag1', 'tag2'])
   assert.ok(newEntry.headers)
   assert.strictEqual(typeof newEntry.cachedAt, 'number')
   assert.strictEqual(typeof newEntry.deleteAt, 'number')
