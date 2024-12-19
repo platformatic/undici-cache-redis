@@ -17,17 +17,22 @@ test('caches request successfully', async (t) => {
     res.end('asd')
   }).listen(0)
 
+  await once(server, 'listening')
+
   const store = new RedisCacheStore()
   const origin = `http://localhost:${server.address().port}`
   const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  const emittedEntries = []
+  store.on('write', (entry) => {
+    emittedEntries.push(entry)
+  })
 
   t.after(async () => {
     server.close()
     await store.close()
     await client.close()
   })
-
-  await once(server, 'listening')
 
   assert.strictEqual(requestsToOrigin, 0)
 
@@ -58,6 +63,19 @@ test('caches request successfully', async (t) => {
 
     assert.strictEqual(headers.age, '1')
   }
+
+  assert.strictEqual(emittedEntries.length, 1)
+  const emittedEntry = emittedEntries[0]
+  assert.ok(emittedEntry.id)
+  assert.strictEqual(emittedEntry.origin, origin)
+  assert.strictEqual(emittedEntry.method, 'GET')
+  assert.strictEqual(emittedEntry.path, '/')
+  assert.strictEqual(emittedEntry.statusCode, 200)
+  assert.ok(emittedEntry.headers)
+  assert.ok(emittedEntry.cacheTags)
+  assert.ok(emittedEntry.cachedAt)
+  assert.ok(emittedEntry.staleAt)
+  assert.ok(emittedEntry.deleteAt)
 })
 
 test('invalidates response by cache tag', async (t) => {
