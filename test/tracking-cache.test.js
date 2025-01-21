@@ -1,166 +1,102 @@
 'use strict'
 
-const { describe, test } = require('node:test')
-const { deepStrictEqual, equal, fail } = require('node:assert')
+const { test } = require('node:test')
+const { strictEqual, deepStrictEqual } = require('node:assert')
 const TrackingCache = require('../lib/tracking-cache')
 
-const errorCallback = (err) => fail(err)
+test('should override cache entries', async () => {
+  const cache = new TrackingCache()
 
-const buildSubClient = () => {
-  let messageCb
+  // Fill the cache with a same entries
+  for (let i = 0; i < 10; i++) {
+    const entry = generateCacheEntry({ id: i, origin: 'http://test.com' })
+    cache.set(entry.key, entry.metadata, entry.value)
+  }
+
+  strictEqual(cache.count, 1)
+})
+
+test('should delete values when reaching a count threshold', async () => {
+  const maxCount = 5
+
+  const cache = new TrackingCache({ maxCount })
+  const entries = []
+
+  // Fill the cache
+  for (let i = 0; i < maxCount; i++) {
+    const entry = generateCacheEntry({ id: i, origin: `http://test-${i}.com` })
+    cache.set(entry.key, entry.metadata, entry.value)
+    entries.push(entry)
+  }
+
+  // Trigger first two entries for the lru
+  cache.get(entries[0].key)
+  cache.get(entries[1].key)
+
+  // Add an extra entry that should trigger the deletion
+  const entry = generateCacheEntry({ id: maxCount, origin: 'http://extra.com' })
+  cache.set(entry.key, entry.metadata, entry.value)
+  entries.push(entry)
+
+  strictEqual(cache.count, maxCount)
+
+  deepStrictEqual(cache.get(entries[0].key), entries[0].value)
+  deepStrictEqual(cache.get(entries[1].key), entries[1].value)
+  deepStrictEqual(cache.get(entries[2].key), undefined)
+  deepStrictEqual(cache.get(entries[3].key), entries[3].value)
+  deepStrictEqual(cache.get(entries[4].key), entries[4].value)
+})
+
+test('should delete values when reaching a size threshold', async () => {
+  const maxSize = 100
+  const bodySize = 10
+  const cacheSize = maxSize / bodySize
+
+  const cache = new TrackingCache({ maxSize })
+  const entries = []
+
+  // Fill the cache
+  for (let i = 0; i < cacheSize; i++) {
+    const entry = generateCacheEntry({
+      id: i,
+      origin: `http://test-${i}.com`,
+      body: i.toString().repeat(bodySize),
+    })
+    cache.set(entry.key, entry.metadata, entry.value)
+    entries.push(entry)
+  }
+
+  // Trigger first two entries for the lru
+  cache.get(entries[0].key)
+  cache.get(entries[1].key)
+
+  // Add an extra entry that should trigger the deletion
+  const entry = generateCacheEntry({
+    id: cacheSize,
+    origin: 'http://extra.com',
+    body: 'e'.repeat(bodySize),
+  })
+
+  cache.set(entry.key, entry.metadata, entry.value)
+  entries.push(entry)
+
+  strictEqual(cache.size, maxSize)
+
+  deepStrictEqual(cache.get(entries[0].key), entries[0].value)
+  deepStrictEqual(cache.get(entries[1].key), entries[1].value)
+  deepStrictEqual(cache.get(entries[2].key), undefined)
+  deepStrictEqual(cache.get(entries[3].key), entries[3].value)
+  deepStrictEqual(cache.get(entries[4].key), entries[4].value)
+})
+
+function generateCacheEntry ({ id, origin, body }) {
+  id = id ?? Math.random().toString(36).slice(2)
+  origin = origin ?? 'http://test.com'
+  body = body ?? 'test-body'
 
   return {
-    call: (...args) => {
-      deepStrictEqual([...args], ['CLIENT', 'ID'])
-      return Promise.resolve(0)
-    },
-    subscribe: (channel) => {
-      equal(channel, '__redis__:invalidate')
-      return Promise.resolve()
-    },
-    on: (event, cb) => {
-      if (event !== 'message') {
-        fail(`untested event: ${event}`)
-      }
-      messageCb = cb
-    },
-    _invalidateKey: (key) => {
-      messageCb('__redis__:invalidate', key)
-    }
+    key: { id, origin, path: '/foo', method: 'GET' },
+    value: { body: [body] },
+    metadata: {},
   }
 }
-
-describe('TrackingCache', () => {
-  test('get', async () => {
-    let redisCalls = 0
-
-    const subClient = buildSubClient()
-    const cache = new TrackingCache(
-      {
-        get: (key) => {
-          redisCalls++
-
-          if (key === 'some-key') {
-            return 'asd123'
-          }
-
-          return null
-        },
-        call: (...args) => {
-          deepStrictEqual([...args], ['CLIENT', 'TRACKING', 'on', 'REDIRECT', 0])
-        }
-      },
-      subClient,
-      errorCallback
-    )
-
-    // First request, should reach redis
-    let value = await cache.get('some-key')
-    equal(value, 'asd123')
-    equal(redisCalls, 1)
-
-    // Fetch it again, this time it shouldn't reach Redis
-    value = await cache.get('some-key')
-    equal(value, 'asd123')
-    equal(redisCalls, 1)
-
-    // Invalidate it & try again, should reach Redis
-    subClient._invalidateKey('some-key')
-
-    value = await cache.get('some-key')
-    equal(value, 'asd123')
-    equal(redisCalls, 2)
-
-    value = await cache.get('unknown-key')
-    equal(value, null)
-    equal(redisCalls, 3)
-  })
-
-  test('hget', async () => {
-    let redisCalls = 0
-
-    const subClient = buildSubClient()
-    const cache = new TrackingCache(
-      {
-        hget: (_, value) => {
-          redisCalls++
-
-          if (value === 'field1') {
-            return 'asd123'
-          } else if (value === 'field2') {
-            return '123asd'
-          }
-
-          return null
-        },
-        call: (...args) => {
-          deepStrictEqual([...args], ['CLIENT', 'TRACKING', 'on', 'REDIRECT', 0])
-        }
-      },
-      subClient,
-      errorCallback
-    )
-
-    // First request, should reach redis
-    let value = await cache.hget('some-key', 'field1')
-    equal(value, 'asd123')
-    equal(redisCalls, 1)
-
-    value = await cache.hget('some-key', 'field1')
-    equal(value, 'asd123')
-    equal(redisCalls, 1)
-
-    value = await cache.hget('some-key', 'field2')
-    equal(value, '123asd')
-    equal(redisCalls, 2)
-
-    value = await cache.hget('unvalid-key', 'field1234567')
-    equal(value, null)
-    equal(redisCalls, 3)
-  })
-
-  test('hgetall', async () => {
-    let redisCalls = 0
-    const subClient = buildSubClient()
-    const cache = new TrackingCache(
-      {
-        hgetall: (key) => {
-          redisCalls++
-
-          if (key === 'some-key') {
-            return {
-              field1: 'asd123',
-              field2: '123asd'
-            }
-          }
-
-          return {}
-        },
-        call: (...args) => {
-          deepStrictEqual([...args], ['CLIENT', 'TRACKING', 'on', 'REDIRECT', 0])
-        }
-      },
-      subClient,
-      errorCallback
-    )
-
-    // First request, should reach redis
-    let value = await cache.hgetall('some-key')
-    deepStrictEqual(value, {
-      field1: 'asd123',
-      field2: '123asd'
-    })
-    equal(redisCalls, 1)
-
-    value = await cache.hgetall('some-key')
-    deepStrictEqual(value, {
-      field1: 'asd123',
-      field2: '123asd'
-    })
-    equal(redisCalls, 1)
-
-    value = await cache.hgetall('unknown-key')
-    deepStrictEqual(value, {})
-    equal(redisCalls, 2)
-  })
-})

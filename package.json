@@ -30,7 +30,8 @@
   },
   "homepage": "https://github.com/platformatic/undici-cache-redis#readme",
   "dependencies": {
-    "iovalkey": "^0.1.0"
+    "iovalkey": "^0.1.0",
+    "lru_map": "^0.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
