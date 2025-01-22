@@ -5,7 +5,11 @@ import { GetResult, CacheKey, CachedResponse } from "./lib/internal-types";
 export interface RedisCacheStoreOpts {
   clientOpts?: RedisOptions
   
+  maxEntrySize?: number
+
   maxSize?: number
+
+  maxCount?: number
   
   /**
    * Redis client-side caching
