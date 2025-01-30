@@ -655,6 +655,54 @@ function cacheStoreTests (CacheStore) {
       strictEqual(keys.length, 0)
     }
   })
+
+  test('saves entry with a custom id', async (t) => {
+    await cleanValkey()
+
+    const request = {
+      id: 'custom-id',
+      origin: 'localhost',
+      path: '/',
+      method: 'GET',
+      headers: {}
+    }
+    const requestValue = {
+      statusCode: 200,
+      statusMessage: '',
+      headers: { foo: 'bar' },
+      cachedAt: Date.now(),
+      staleAt: Date.now() + 10000,
+      deleteAt: Date.now() + 20000
+    }
+    const requestBody = ['asd', '123']
+
+    /**
+     * @type {import('../lib/internal-types.d.ts').CacheStore}
+     */
+    const store = new CacheStore({
+      clientOpts: {
+        keyPrefix: `${crypto.randomUUID()}:`
+      },
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    // Sanity check
+    equal(await store.get(request), undefined)
+
+    // Write the response to the store
+    const writeStream = store.createWriteStream(request, requestValue)
+    notEqual(writeStream, undefined)
+    writeResponse(writeStream, requestBody)
+
+    const [entry] = await once(store, 'write')
+    strictEqual(entry.id, 'custom-id')
+  })
 }
 
 /**

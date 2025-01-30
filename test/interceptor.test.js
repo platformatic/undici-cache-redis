@@ -491,6 +491,124 @@ test('should not invalidate GET cache by making POST to the _different_ url', as
   }
 })
 
+test('should prioritize cached responses with different vary headers', async (t) => {
+  await cleanValkey()
+
+  let requestsToOrigin = 0
+
+  const server = createServer((req, res) => {
+    requestsToOrigin++
+    res.setHeader('cache-control', 'public, s-maxage=20')
+
+    if (req.headers['response-vary-header']) {
+      res.setHeader('vary', req.headers['response-vary-header'])
+    }
+
+    res.end(requestsToOrigin.toString())
+  }).listen(0)
+
+  await once(server, 'listening')
+
+  const store = new RedisCacheStore({
+    cacheTagsHeader: 'cache-tag'
+  })
+
+  const origin = `http://localhost:${server.address().port}`
+  const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await store.close()
+    await client.close()
+  })
+
+  assert.strictEqual(requestsToOrigin, 0)
+
+  {
+    // Should hit the origin
+    const { statusCode, headers, body } = await client.request({
+      origin,
+      method: 'GET',
+      path: '/test',
+      headers: {
+        'cache-tag': 'tag1',
+        'test-header-1': 'foo',
+        'test-header-2': 'foo',
+        'test-header-3': 'foo',
+        'response-vary-header': 'test-header-1, test-header-2, test-header-3'
+      }
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(headers.vary, 'test-header-1, test-header-2, test-header-3')
+
+    const text = await body.text()
+    assert.strictEqual(text, '1')
+  }
+
+  {
+    // Should hit the origin (different vary headers)
+    // Sets more generic vary headers than the previous request
+    const { statusCode, headers, body } = await client.request({
+      origin,
+      method: 'GET',
+      path: '/test',
+      headers: {
+        'cache-tag': 'tag2',
+        'test-header-1': 'foo',
+        'test-header-2': 'foo',
+        'test-header-3': 'bar',
+        'response-vary-header': 'test-header-1, test-header-2'
+      }
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(headers.vary, 'test-header-1, test-header-2')
+
+    const text = await body.text()
+    assert.strictEqual(text, '2')
+  }
+
+  {
+    // Should hit the first (more specific) cached response
+    const { statusCode, headers, body } = await client.request({
+      origin,
+      method: 'GET',
+      path: '/test',
+      headers: {
+        'test-header-1': 'foo',
+        'test-header-2': 'foo',
+        'test-header-3': 'foo'
+      }
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(headers.vary, 'test-header-1, test-header-2, test-header-3')
+
+    const text = await body.text()
+    assert.strictEqual(text, '1')
+  }
+
+  // Invalidate the first cached response
+  await store.deleteTags(['tag1'])
+
+  {
+    // Should hit the second
+    const { statusCode, headers, body } = await client.request({
+      origin,
+      method: 'GET',
+      path: '/test',
+      headers: {
+        'test-header-1': 'foo',
+        'test-header-2': 'foo',
+        'test-header-3': 'bar'
+      }
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(headers.vary, 'test-header-1, test-header-2')
+
+    const text = await body.text()
+    assert.strictEqual(text, '2')
+  }
+})
+
 test('should handle big number of concurrent requests', async (t) => {
   await cleanValkey()
 
