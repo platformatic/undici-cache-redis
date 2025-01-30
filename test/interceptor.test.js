@@ -155,7 +155,7 @@ test('invalidates response by cache key', async (t) => {
 
   const server = createServer((_, res) => {
     requestsToOrigin++
-    res.setHeader('cache-control', 'public, s-maxage=1000')
+    res.setHeader('cache-control', 'public, s-maxage=2000')
     res.end('asd')
   }).listen(0)
 
