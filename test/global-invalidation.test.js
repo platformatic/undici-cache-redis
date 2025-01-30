@@ -56,7 +56,7 @@ test('should stream cache entries', async (t) => {
 
     {
       const { statusCode } = await client.request({
-        origin, method: 'GET', path: '/bar', headers: { 'cache-tags': 'tag1,tag3,tag5' }
+        origin, method: 'GET', path: '/bak', headers: { 'cache-tags': 'tag1,tag3,tag5' }
       })
       assert.strictEqual(statusCode, 200)
     }
@@ -89,9 +89,10 @@ test('should stream cache entries', async (t) => {
       })
       assert.strictEqual(statusCode, 200)
     }
+
     {
       const { statusCode } = await client.request({
-        origin, method: 'GET', path: '/boa', headers: { 'cache-tags': 'tag3,tag1,tag7' }
+        origin, method: 'GET', path: '/bov', headers: { 'cache-tags': 'tag3,tag1,tag7' }
       })
       assert.strictEqual(statusCode, 200)
     }

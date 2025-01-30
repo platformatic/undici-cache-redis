@@ -7,6 +7,7 @@ const { createServer } = require('node:http')
 const { once } = require('node:events')
 const { Client, interceptors } = require('undici')
 const RedisCacheStore = require('../index.js')
+const { cleanValkey, getAllKeys } = require('./helper.js')
 
 test('caches request successfully', async (t) => {
   let requestsToOrigin = 0
@@ -488,4 +489,66 @@ test('should not invalidate GET cache by making POST to the _different_ url', as
     const text = await body.text()
     assert.strictEqual(text, 'asd')
   }
+})
+
+test('should handle big number of concurrent requests', async (t) => {
+  await cleanValkey()
+
+  let requestsToOrigin = 0
+
+  const server = createServer((req, res) => {
+    requestsToOrigin++
+    res.setHeader('cache-control', 'public, s-maxage=20')
+
+    if (req.headers['test-header']) {
+      res.setHeader('vary', 'test-header')
+    }
+
+    res.end('asd')
+  }).listen(0)
+
+  await once(server, 'listening')
+
+  const store = new RedisCacheStore()
+
+  const origin = `http://localhost:${server.address().port}`
+  const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await store.close()
+    await client.close()
+  })
+
+  assert.strictEqual(requestsToOrigin, 0)
+
+  const sendRequest = async (path, headers) => {
+    const { statusCode, body } = await client.request({
+      method: 'GET', origin, path, headers
+    })
+    assert.strictEqual(statusCode, 200)
+
+    const text = await body.text()
+    assert.strictEqual(text, 'asd')
+  }
+
+  const promises = []
+  for (let i = 0; i < 20; i++) {
+    promises.push(sendRequest('/test'))
+    promises.push(sendRequest('/test', { 'test-header': 'foo' }))
+  }
+
+  await Promise.all(promises)
+  await sleep(1000)
+
+  const keys = await getAllKeys()
+
+  const idKeys = keys.filter((key) => key.startsWith('ids:'))
+  assert.strictEqual(idKeys.length, 2)
+
+  const metadataKeys = keys.filter((key) => key.startsWith('metadata:'))
+  assert.strictEqual(metadataKeys.length, 2)
+
+  const valuesKeys = keys.filter((key) => key.startsWith('values:'))
+  assert.strictEqual(valuesKeys.length, 2)
 })
