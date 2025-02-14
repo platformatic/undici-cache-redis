@@ -7,7 +7,7 @@ const { createServer } = require('node:http')
 const { once } = require('node:events')
 const { Client, interceptors } = require('undici')
 const RedisCacheStore = require('../index.js')
-const { cleanValkey, getAllKeys } = require('./helper.js')
+const { cleanValkey, getAllKeys, gzip, ungzip } = require('./helper.js')
 
 test('caches request successfully', async (t) => {
   let requestsToOrigin = 0
@@ -77,6 +77,77 @@ test('caches request successfully', async (t) => {
   assert.ok(emittedEntry.cachedAt)
   assert.ok(emittedEntry.staleAt)
   assert.ok(emittedEntry.deleteAt)
+})
+
+test('caches binary request successfully', async (t) => {
+  let requestsToOrigin = 0
+
+  const expectedResponse = 'hello'
+
+  const server = createServer(async (_, res) => {
+    requestsToOrigin++
+    res.setHeader('cache-control', 'public, s-maxage=10')
+
+    try {
+      const gzippedResponse = await gzip(expectedResponse)
+      res.end(gzippedResponse)
+    } catch (err) {
+      res.statusCode = 500
+      res.end(err.message)
+    }
+
+  }).listen(0)
+
+  await once(server, 'listening')
+
+  const store = new RedisCacheStore()
+  const origin = `http://localhost:${server.address().port}`
+  const client = new Client(origin).compose(interceptors.cache({ store }))
+
+  const emittedEntries = []
+  store.on('write', (entry) => {
+    emittedEntries.push(entry)
+  })
+
+  t.after(async () => {
+    server.close()
+    await store.close()
+    await client.close()
+  })
+
+  assert.strictEqual(requestsToOrigin, 0)
+
+  {
+    const { statusCode, body } = await client.request({
+      origin, method: 'GET', path: '/'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 1)
+
+    const buffer = await body.arrayBuffer()
+    const ungzippedBuffer = await ungzip(buffer)
+    const response = ungzippedBuffer.toString()
+    assert.strictEqual(response, expectedResponse)
+  }
+
+  // Wait for redis to save the response
+  await sleep(1000)
+
+  {
+    // Send second request that should be handled by cache
+    const { statusCode, body, headers } = await client.request({
+      origin, method: 'GET', path: '/'
+    })
+    assert.strictEqual(statusCode, 200)
+    assert.strictEqual(requestsToOrigin, 1)
+
+    const buffer = await body.arrayBuffer()
+    const ungzippedBuffer = await ungzip(buffer)
+    const response = ungzippedBuffer.toString()
+    assert.strictEqual(response, expectedResponse)
+
+    assert.strictEqual(headers.age, '1')
+  }
 })
 
 test('invalidates response by cache tag', async (t) => {
