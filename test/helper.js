@@ -45,7 +45,7 @@ async function ungzip (data) {
   stream.end(Buffer.from(data))
   await once(stream, 'end')
 
-  return Buffer.concat(ungzippedData) 
+  return Buffer.concat(ungzippedData)
 }
 
 module.exports = {

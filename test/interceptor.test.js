@@ -95,7 +95,6 @@ test('caches binary request successfully', async (t) => {
       res.statusCode = 500
       res.end(err.message)
     }
-
   }).listen(0)
 
   await once(server, 'listening')
