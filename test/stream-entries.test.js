@@ -88,4 +88,7 @@ test('should stream cache entries', async (t) => {
   assert.strictEqual(typeof foundEntry.cachedAt, 'number')
   assert.strictEqual(typeof foundEntry.staleAt, 'number')
   assert.strictEqual(typeof foundEntry.deleteAt, 'number')
+
+  const response = await manager.getResponseById(foundEntry.id, 'foo:bar:1:')
+  assert.strictEqual(response, 'asd')
 })
