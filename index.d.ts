@@ -24,6 +24,8 @@ export interface RedisCacheStoreOpts {
 }
 
 export interface RedisCacheManagerOpts {
+  configureKeyspaceEventNotification?: boolean
+
   clientOpts?: RedisOptions
 }
 
