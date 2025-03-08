@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "valkey": "docker run -p 6379:6379 --rm valkey/valkey:8.0",
+    "valkey": "docker compose up -d",
     "test": "node --test --test-concurrency=1 ./test/*.test.js",
     "test:typescript": "tsd --files test/ && tsc ./index.d.ts --noEmit"
   },

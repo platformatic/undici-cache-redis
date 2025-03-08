@@ -1,0 +1,25 @@
+services:
+  plain-valkey:
+    ports:
+      - "6379:6379"
+    image: "valkey/valkey:8.1"
+
+  preconfigured-valkey:
+    ports:
+      - "6389:6379"
+    image: "valkey/valkey:8.1"
+    volumes:
+      - ${PWD}/test/__fixtures__/preconfigured-valkey.conf:/usr/local/etc/valkey/valkey.conf
+    command:
+      - valkey-server
+      - /usr/local/etc/valkey/valkey.conf
+
+  misconfigured-valkey:
+    ports:
+      - "6399:6379"
+    image: "valkey/valkey:8.1"
+    volumes:
+      - ${PWD}/test/__fixtures__/misconfigured-valkey.conf:/usr/local/etc/valkey/valkey.conf
+    command:
+      - valkey-server
+      - /usr/local/etc/valkey/valkey.conf

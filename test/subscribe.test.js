@@ -23,7 +23,7 @@ test('should notify when a new key is added', async (t) => {
 
   await once(server, 'listening')
 
-  const manager = new RedisCacheManager({ configureKeyspaceEventNotification: true })
+  const manager = new RedisCacheManager()
   await manager.subscribe()
 
   const entries = []
@@ -105,7 +105,7 @@ test('should notify when invalidates response by cache tag', async (t) => {
 
   await once(server, 'listening')
 
-  const manager = new RedisCacheManager({ configureKeyspaceEventNotification: true })
+  const manager = new RedisCacheManager()
 
   const addedEntries = []
   manager.on('add-entry', entry => addedEntries.push(entry))
@@ -179,7 +179,7 @@ test('should notify when invalidates response by cache key', async (t) => {
 
   await once(server, 'listening')
 
-  const manager = new RedisCacheManager({ configureKeyspaceEventNotification: true })
+  const manager = new RedisCacheManager()
   await manager.subscribe()
 
   const addedEntries = []
@@ -256,7 +256,7 @@ test('should notify when cache entry expires', async (t) => {
 
   await once(server, 'listening')
 
-  const manager = new RedisCacheManager({ configureKeyspaceEventNotification: true })
+  const manager = new RedisCacheManager()
   await manager.subscribe()
 
   const addedEntries = []
