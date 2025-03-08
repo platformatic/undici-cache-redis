@@ -50,12 +50,6 @@ jobs:
     strategy:
       matrix:
         version: [20, 22]
-    services:
-      redis:
-        image: redis:7
-        ports:
-          - '6379:6379'
-        options: '--entrypoint redis-server'
     steps:
       - name: Git Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
@@ -66,11 +60,19 @@ jobs:
           node-version: ${{ matrix.version }}
           cache: 'npm'
 
+      # Using docker compose to avoid duplication and because it isn't possible
+      # to override the entrypoint using GHA `services` block
+      - name: Start valkey services
+        run: docker compose up -d
+
       - name: Install Dependencies
         run: npm install
 
       - name: Run Tests
         run: npm run test
+
+      - name: Shutdown valkey
+        run: docker compose down
 
   type-tests:
     name: Type Tests
