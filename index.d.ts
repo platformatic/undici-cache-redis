@@ -3,6 +3,8 @@ import { RedisOptions } from "iovalkey";
 import { GetResult, CacheKey, CachedResponse } from "./lib/internal-types";
 
 export interface RedisCacheStoreOpts {
+  clientConfigTracking?: boolean
+
   clientOpts?: RedisOptions
   
   maxEntrySize?: number
@@ -24,6 +26,8 @@ export interface RedisCacheStoreOpts {
 }
 
 export interface RedisCacheManagerOpts {
+  clientConfigKeyspaceEventNotify?: boolean
+
   clientOpts?: RedisOptions
 }
 

@@ -104,7 +104,7 @@ test('should stream cache entries', async (t) => {
   await sleep(1000)
 
   // Getting all request from the manager
-  const manager = new RedisCacheManager()
+  const manager = new RedisCacheManager({ configureKeyspaceEventNotification: true })
   await manager.subscribe()
   t.after(() => manager.close())
 

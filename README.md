@@ -26,3 +26,18 @@ const client = new Client('http://localhost')
     })
   }))
 ```
+
+### Restricted commands
+
+In managed Redis/Valkey environments, like Elasticache, some commands are not
+available or are restricted. When using a managed service, make sure that
+`notify-keyspace-events` is available. By default, `undici-redis-cache` will
+attempt to turn this setting on. To avoid failure in managed environments, set
+the following additional options:
+
+```js
+const cacheManager = new RedisCacheManager({
+    clientConfigKeyspaceEventNotify: false,
+    // ...
+})
+```
