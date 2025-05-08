@@ -7,6 +7,7 @@ const { Readable } = require('node:stream')
 const { once } = require('node:events')
 const { RedisCacheStore } = require('../lib/redis-cache-store')
 const { getAllKeys, cleanValkey } = require('./helper.js')
+const { setTimeout: sleep } = require('node:timers/promises')
 
 cacheStoreTests(RedisCacheStore)
 
@@ -165,6 +166,91 @@ function cacheStoreTests (CacheStore) {
         ...requestValue,
         body: requestBody,
       })
+    })
+
+    test('a stale request is overwritten', async (t) => {
+      /**
+       * @type {import('../../types/cache-interceptor.d.ts').default.CacheKey}
+       */
+      const key = {
+        origin: 'localhost',
+        path: '/',
+        method: 'GET',
+        headers: {}
+      }
+
+      /**
+       * @type {import('../../types/cache-interceptor.d.ts').default.CacheValue}
+       */
+      const value = {
+        statusCode: 200,
+        statusMessage: '',
+        headers: { foo: 'bar' },
+        cacheControlDirectives: {},
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 1000,
+        // deleteAt is different because stale-while-revalidate, stale-if-error, ...
+        deleteAt: Date.now() + 5000
+      }
+
+      const body = [Buffer.from('asd'), Buffer.from('123')]
+
+      const store = new CacheStore()
+
+      t.after(async () => {
+        await store.close()
+      })
+
+      // Sanity check
+      equal(await store.get(key), undefined)
+
+      {
+        const writable = store.createWriteStream(key, value)
+        notEqual(writable, undefined)
+        writeResponse(writable, body)
+      }
+
+      await sleep(1500)
+
+      {
+        const result = await store.get(structuredClone(key))
+        notEqual(result, undefined)
+        deepStrictEqual(result, {
+          ...value,
+          body
+        })
+      }
+
+      /**
+       * @type {import('../../types/cache-interceptor.d.ts').default.CacheValue}
+       */
+      const value2 = {
+        statusCode: 200,
+        statusMessage: '',
+        headers: { foo: 'baz' },
+        cacheControlDirectives: {},
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 1000,
+        // deleteAt is different because stale-while-revalidate, stale-if-error, ...
+        deleteAt: Date.now() + 5000
+      }
+
+      const body2 = [Buffer.from('foo'), Buffer.from('123')]
+
+      {
+        const writable = store.createWriteStream(key, value2)
+        notEqual(writable, undefined)
+        writeResponse(writable, body2)
+      }
+
+      {
+        const result = await store.get(structuredClone(key))
+        notEqual(result, undefined)
+        deepStrictEqual(result, {
+          ...value,
+          body
+        })
+      }
     })
 
     test('doesn\'t return response past deletedAt', async (t) => {
