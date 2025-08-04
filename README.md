@@ -237,6 +237,75 @@ The library uses a structured approach to Redis keys:
 
 Where `{prefix}` is your configured `keyPrefix` and `{id}` is a UUID for each cache entry.
 
+## Cache Invalidation Flow
+
+The following diagram illustrates how cache invalidation works across different scenarios:
+
+```mermaid
+flowchart TD
+    A[Cache Invalidation Request] --> B{Invalidation Type}
+    
+    B -->|Delete by Key| C[delete key]
+    B -->|Delete by Tags| D[deleteTags tags]
+    B -->|Automatic Cleanup| E[Redis Expiration Events]
+    
+    C --> F[Find Metadata Keys]
+    F --> G[Get Metadata from Redis]
+    G --> H[Extract Associated Keys]
+    H --> I[Delete Redis Keys]
+    I --> J[Update Tracking Cache]
+    J --> K[Clean up Tags]
+    K --> L[Complete]
+    
+    D --> M[Scan for Tag Patterns]
+    M --> N[Find Matching Tag Keys]
+    N --> O[Get Metadata References]
+    O --> P[Delete Tag Keys]
+    P --> Q[Delete Referenced Entries]
+    Q --> R[Update Tracking Cache]
+    R --> S[Complete]
+    
+    E --> T[Redis Keyspace Event]
+    T --> U{Event Type}
+    U -->|expired| V[Entry Expiration]
+    U -->|del| W[Manual Deletion]
+    
+    V --> X[Parse Key Type]
+    X --> Y{Key Type}
+    Y -->|metadata| Z[Emit delete-entry Event]
+    Y -->|cache-tags| AA[Parse Tags from Key]
+    AA --> BB[Global Tag Cleanup]
+    BB --> CC[Delete Tag Entries]
+    CC --> DD[Complete]
+    
+    W --> X
+    Z --> DD
+    
+    %% Client-side tracking invalidation
+    EE[Redis Client Tracking] --> FF[__redis__:invalidate Event]
+    FF --> GG[Parse Metadata Key]
+    GG --> HH[Remove from Tracking Cache]
+    HH --> II[Complete]
+    
+    %% Styling
+    classDef primary fill:#e1f5fe
+    classDef process fill:#f3e5f5
+    classDef decision fill:#fff3e0
+    classDef complete fill:#e8f5e8
+    
+    class A,C,D,E,EE primary
+    class F,G,H,I,J,K,M,N,O,P,Q,R,T,V,W,X,AA,BB,CC,FF,GG,HH process
+    class B,U,Y decision
+    class L,S,DD,II complete
+```
+
+### Invalidation Methods
+
+1. **Direct Key Deletion**: Targets specific cache entries by URL pattern
+2. **Tag-based Deletion**: Removes all entries associated with given cache tags
+3. **Automatic Expiration**: Handles Redis TTL expiration and manual deletions
+4. **Client-side Tracking**: Maintains local cache consistency via Redis invalidation notifications
+
 ## Performance Considerations
 
 1. **Client-side Tracking**: Enabled by default, provides in-memory caching of metadata
@@ -321,7 +390,7 @@ const manager = new RedisCacheManager({
 
 ## Requirements
 
-- Node.js >= 18
+- Node.js >= 20
 - Redis >= 6.0 or Valkey >= 7.2
 - Undici >= 7.0
 
