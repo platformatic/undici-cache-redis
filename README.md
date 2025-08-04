@@ -253,7 +253,8 @@ flowchart TD
     F --> G[Get Metadata from Redis]
     G --> H[Extract Associated Keys]
     H --> I[Delete Redis Keys]
-    I --> J[Update Tracking Cache]
+    I --> JJ[Redis/Valkey Key Deleted]
+    JJ --> J[Update Tracking Cache]
     J --> K[Clean up Tags]
     K --> L[Complete]
     
@@ -261,7 +262,8 @@ flowchart TD
     M --> N[Find Matching Tag Keys]
     N --> O[Get Metadata References]
     O --> P[Delete Tag Keys]
-    P --> Q[Delete Referenced Entries]
+    P --> PP[Redis/Valkey Keys Deleted]
+    PP --> Q[Delete Referenced Entries]
     Q --> R[Update Tracking Cache]
     R --> S[Complete]
     
@@ -281,22 +283,26 @@ flowchart TD
     W --> X
     Z --> DD
     
-    %% Client-side tracking invalidation
-    EE[Redis Client Tracking] --> FF[__redis__:invalidate Event]
+    %% Client-side tracking invalidation triggered by Redis updates
+    JJ --> EE[Redis Client Tracking Detects Change]
+    PP --> EE
+    EE --> FF[__redis__:invalidate Event]
     FF --> GG[Parse Metadata Key]
     GG --> HH[Remove from Tracking Cache]
-    HH --> II[Complete]
+    HH --> II[Tracking Complete]
     
     %% Styling
     classDef primary fill:#e1f5fe
     classDef process fill:#f3e5f5
     classDef decision fill:#fff3e0
     classDef complete fill:#e8f5e8
+    classDef redis fill:#ffebee
     
-    class A,C,D,E,EE primary
+    class A,C,D,E primary
     class F,G,H,I,J,K,M,N,O,P,Q,R,T,V,W,X,AA,BB,CC,FF,GG,HH process
     class B,U,Y decision
     class L,S,DD,II complete
+    class JJ,PP,EE redis
 ```
 
 ### Invalidation Methods
