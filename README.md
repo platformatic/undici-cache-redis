@@ -226,6 +226,89 @@ const manager = new RedisCacheManager({
 Ensure your managed Redis instance has the following configuration:
 - `notify-keyspace-events AKE` (if not automatically configured)
 
+## Multi-Host Architecture
+
+The following diagram shows how multiple application hosts interact with Redis through the cache system:
+
+```mermaid
+graph TB
+    subgraph "Application Host 1"
+        A1[Undici Client] --> B1[Cache Interceptor]
+        B1 --> C1[RedisCacheStore]
+        C1 --> D1[TrackingCache<br/>In-Memory LRU]
+        C1 --> E1[Redis Client<br/>Connection 1]
+        C1 --> F1[Redis Subscribe<br/>Connection 1]
+    end
+    
+    subgraph "Application Host 2"
+        A2[Undici Client] --> B2[Cache Interceptor] 
+        B2 --> C2[RedisCacheStore]
+        C2 --> D2[TrackingCache<br/>In-Memory LRU]
+        C2 --> E2[Redis Client<br/>Connection 2]
+        C2 --> F2[Redis Subscribe<br/>Connection 2]
+    end
+    
+    subgraph "Application Host N"
+        A3[Undici Client] --> B3[Cache Interceptor]
+        B3 --> C3[RedisCacheStore]
+        C3 --> D3[TrackingCache<br/>In-Memory LRU]
+        C3 --> E3[Redis Client<br/>Connection N]
+        C3 --> F3[Redis Subscribe<br/>Connection N]
+    end
+    
+    subgraph "Redis/Valkey Cluster"
+        G[Redis/Valkey Server]
+        H[Shared Cache Data]
+        I[Keyspace Events]
+        J[Client Tracking]
+    end
+    
+    %% Data connections
+    E1 -.->|Read/Write| G
+    E2 -.->|Read/Write| G
+    E3 -.->|Read/Write| G
+    
+    %% Event subscriptions
+    F1 -.->|Subscribe to Events| I
+    F2 -.->|Subscribe to Events| I
+    F3 -.->|Subscribe to Events| I
+    
+    %% Shared storage
+    G --> H
+    G --> I
+    G --> J
+    
+    %% Cross-host invalidation
+    I -.->|Keyspace Events| F1
+    I -.->|Keyspace Events| F2 
+    I -.->|Keyspace Events| F3
+    
+    J -.->|Client Tracking| F1
+    J -.->|Client Tracking| F2
+    J -.->|Client Tracking| F3
+    
+    %% Styling
+    classDef host fill:#e3f2fd
+    classDef cache fill:#f3e5f5
+    classDef redis fill:#ffebee
+    classDef memory fill:#e8f5e8
+    classDef events fill:#fff3e0
+    
+    class A1,A2,A3,B1,B2,B3 host
+    class C1,C2,C3 cache
+    class G,H redis
+    class D1,D2,D3 memory
+    class E1,E2,E3,F1,F2,F3,I,J events
+```
+
+### Key Architecture Benefits
+
+1. **Shared Cache Layer**: All hosts share the same Redis cache, eliminating duplicate cached data
+2. **Local Performance**: Each host maintains an in-memory tracking cache for fast metadata lookups
+3. **Real-time Invalidation**: Redis keyspace events ensure all hosts are notified of cache changes
+4. **Client-side Tracking**: Redis client tracking provides efficient invalidation notifications
+5. **Scalability**: New hosts can be added without affecting existing cache data
+
 ## Cache Key Structure
 
 The library uses a structured approach to Redis keys:
