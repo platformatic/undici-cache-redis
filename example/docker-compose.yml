@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  redis:
+    image: valkey/valkey:7-alpine
+    container_name: cache-redis-example
+    ports:
+      - "6379:6379"
+    command: >
+      valkey-server
+      --save ""
+      --appendonly no
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 300
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
