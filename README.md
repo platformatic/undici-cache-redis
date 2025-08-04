@@ -237,23 +237,22 @@ graph TB
     end
     
     subgraph "Host 1"
-        A1[App + Cache]
+        A1[App]
         B1[Local Cache]
     end
     
     subgraph "Host 2" 
-        A2[App + Cache]
+        A2[App]
         B2[Local Cache]
     end
     
     subgraph "Host N"
-        A3[App + Cache]
+        A3[App]
         B3[Local Cache]
     end
     
     subgraph "Redis/Valkey"
-        R[Shared Cache Storage]
-        E[Invalidation Events]
+        R[Shared Cache Storage<br/>+ Invalidation Events]
     end
     
     subgraph "External APIs"
@@ -264,28 +263,32 @@ graph TB
     U2 --> A2
     U3 --> A3
     
-    A1 <--> R
-    A2 <--> R
-    A3 <--> R
+    A1 <--> B1
+    A2 <--> B2
+    A3 <--> B3
+    
+    B1 <--> R
+    B2 <--> R
+    B3 <--> R
     
     A1 --> API
     A2 --> API
     A3 --> API
     
-    E -.-> B1
-    E -.-> B2
-    E -.-> B3
+    R -.-> B1
+    R -.-> B2
+    R -.-> B3
     
     classDef users fill:#e8f5e8
-    classDef host fill:#e3f2fd
+    classDef app fill:#e3f2fd
+    classDef cache fill:#f3e5f5
     classDef redis fill:#ffebee
-    classDef events fill:#fff3e0
-    classDef api fill:#f3e5f5
+    classDef api fill:#fff3e0
     
     class U1,U2,U3 users
-    class A1,A2,A3,B1,B2,B3 host
+    class A1,A2,A3 app
+    class B1,B2,B3 cache
     class R redis
-    class E events
     class API api
 ```
 
