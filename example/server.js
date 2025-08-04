@@ -1,7 +1,6 @@
 'use strict'
 
 const fastify = require('fastify')
-const crypto = require('crypto')
 
 const app = fastify({
   logger: {
@@ -17,11 +16,11 @@ const app = fastify({
 
 // Simulated database of products
 const products = {
-  '1': { id: '1', name: 'Laptop Pro', price: 1299.99, category: 'electronics', stock: 50 },
-  '2': { id: '2', name: 'Wireless Mouse', price: 29.99, category: 'electronics', stock: 200 },
-  '3': { id: '3', name: 'Office Chair', price: 399.99, category: 'furniture', stock: 25 },
-  '4': { id: '4', name: 'Standing Desk', price: 599.99, category: 'furniture', stock: 15 },
-  '5': { id: '5', name: 'Coffee Maker', price: 89.99, category: 'appliances', stock: 100 }
+  1: { id: '1', name: 'Laptop Pro', price: 1299.99, category: 'electronics', stock: 50 },
+  2: { id: '2', name: 'Wireless Mouse', price: 29.99, category: 'electronics', stock: 200 },
+  3: { id: '3', name: 'Office Chair', price: 399.99, category: 'furniture', stock: 25 },
+  4: { id: '4', name: 'Standing Desk', price: 599.99, category: 'furniture', stock: 15 },
+  5: { id: '5', name: 'Coffee Maker', price: 89.99, category: 'appliances', stock: 100 }
 }
 
 // Simulated API latency
@@ -33,15 +32,15 @@ const simulateLatency = (min = 100, max = 500) => {
 // Hook to add cache tags based on endpoint
 app.addHook('onRequest', async (request, reply) => {
   const tags = []
-  
+
   // Add endpoint-specific tags
   if (request.url.startsWith('/api/products')) {
     tags.push('products')
-    
+
     if (request.params.id) {
       tags.push(`product:${request.params.id}`)
     }
-    
+
     if (request.params.category) {
       tags.push(`category:${request.params.category}`)
     }
@@ -50,7 +49,7 @@ app.addHook('onRequest', async (request, reply) => {
   } else if (request.url.startsWith('/api/stats')) {
     tags.push('stats')
   }
-  
+
   if (tags.length > 0) {
     reply.header('Cache-Tags', tags.join(','))
   }
@@ -60,7 +59,7 @@ app.addHook('onRequest', async (request, reply) => {
 app.get('/api/products', async (request, reply) => {
   request.log.info({ path: request.url }, 'Fetching all products')
   await simulateLatency(200, 600)
-  
+
   const productList = Object.values(products)
   reply.header('Cache-Control', 'public, max-age=300') // Cache for 5 minutes
   return {
@@ -75,13 +74,13 @@ app.get('/api/products/:id', async (request, reply) => {
   const { id } = request.params
   request.log.info({ path: request.url, id }, 'Fetching product by ID')
   await simulateLatency(100, 300)
-  
+
   const product = products[id]
   if (!product) {
     reply.code(404)
     return { error: 'Product not found' }
   }
-  
+
   reply.header('Cache-Control', 'public, max-age=600') // Cache for 10 minutes
   return {
     product,
@@ -94,9 +93,9 @@ app.get('/api/products/category/:category', async (request, reply) => {
   const { category } = request.params
   request.log.info({ path: request.url, category }, 'Fetching products by category')
   await simulateLatency(150, 400)
-  
+
   const categoryProducts = Object.values(products).filter(p => p.category === category)
-  
+
   reply.header('Cache-Control', 'public, max-age=300') // Cache for 5 minutes
   return {
     category,
@@ -111,12 +110,12 @@ app.get('/api/recommendations/:userId', async (request, reply) => {
   const { userId } = request.params
   request.log.info({ path: request.url, userId }, 'Generating recommendations')
   await simulateLatency(300, 800)
-  
+
   // Simulate personalized recommendations
   const allProducts = Object.values(products)
   const recommendations = []
   const used = new Set()
-  
+
   while (recommendations.length < 3) {
     const index = Math.floor(Math.random() * allProducts.length)
     if (!used.has(index)) {
@@ -124,7 +123,7 @@ app.get('/api/recommendations/:userId', async (request, reply) => {
       recommendations.push(allProducts[index])
     }
   }
-  
+
   reply.header('Cache-Control', 'public, max-age=60') // Cache for 1 minute
   return {
     userId,
@@ -137,7 +136,7 @@ app.get('/api/recommendations/:userId', async (request, reply) => {
 app.get('/api/stats', async (request, reply) => {
   request.log.info({ path: request.url }, 'Calculating statistics')
   await simulateLatency(500, 1000) // Expensive operation
-  
+
   const stats = {
     totalProducts: Object.keys(products).length,
     totalValue: Object.values(products).reduce((sum, p) => sum + (p.price * p.stock), 0),
@@ -145,7 +144,7 @@ app.get('/api/stats', async (request, reply) => {
     averagePrice: Object.values(products).reduce((sum, p) => sum + p.price, 0) / Object.keys(products).length,
     lowStock: Object.values(products).filter(p => p.stock < 30).map(p => ({ id: p.id, name: p.name, stock: p.stock }))
   }
-  
+
   reply.header('Cache-Control', 'public, max-age=900') // Cache for 15 minutes
   return {
     stats,
@@ -157,18 +156,18 @@ app.get('/api/stats', async (request, reply) => {
 app.put('/api/products/:id', async (request, reply) => {
   const { id } = request.params
   const updates = request.body
-  
+
   request.log.info({ path: request.url, id, updates }, 'Updating product')
   await simulateLatency(100, 200)
-  
+
   if (!products[id]) {
     reply.code(404)
     return { error: 'Product not found' }
   }
-  
+
   // Update product
   products[id] = { ...products[id], ...updates }
-  
+
   // Return updated product with cache invalidation hint
   reply.header('X-Cache-Invalidate', `product:${id},products`)
   return {
@@ -181,9 +180,9 @@ app.put('/api/products/:id', async (request, reply) => {
 // POST invalidate cache by tags (admin endpoint)
 app.post('/api/admin/invalidate-cache', async (request, reply) => {
   const { tags } = request.body
-  
+
   request.log.info({ tags }, 'Cache invalidation requested')
-  
+
   return {
     message: 'Cache invalidation request received',
     tags,

@@ -18,11 +18,11 @@ const API_BASE_URL = 'http://localhost:3000'
 
 // Performance tracking
 class PerformanceTracker {
-  constructor() {
+  constructor () {
     this.requests = []
   }
 
-  startRequest(url, fromCache = false) {
+  startRequest (url, fromCache = false) {
     const id = Date.now() + Math.random()
     const request = {
       id,
@@ -34,7 +34,7 @@ class PerformanceTracker {
     return id
   }
 
-  endRequest(id) {
+  endRequest (id) {
     const request = this.requests.find(r => r.id === id)
     if (request) {
       request.endTime = process.hrtime.bigint()
@@ -43,7 +43,7 @@ class PerformanceTracker {
     }
   }
 
-  getStats() {
+  getStats () {
     const completed = this.requests.filter(r => r.endTime)
     const cached = completed.filter(r => r.fromCache)
     const uncached = completed.filter(r => !r.fromCache)
@@ -62,7 +62,7 @@ class PerformanceTracker {
 
 const tracker = new PerformanceTracker()
 
-async function createCachedAgent() {
+async function createCachedAgent () {
   // Create Redis cache store with configuration
   const cacheStore = new RedisCacheStore({
     redis: 'redis://localhost:6379',
@@ -97,10 +97,10 @@ async function createCachedAgent() {
   return { agent, cacheStore, cacheManager }
 }
 
-async function makeRequestWithAgent(agent, method, path, body = null) {
+async function makeRequestWithAgent (agent, method, path, body = null) {
   try {
     const requestId = tracker.startRequest(`${method} ${path}`)
-    
+
     const options = {
       method,
       path,
@@ -109,18 +109,18 @@ async function makeRequestWithAgent(agent, method, path, body = null) {
         'Content-Type': 'application/json'
       }
     }
-    
+
     if (body) {
       options.body = JSON.stringify(body)
     }
-    
+
     const response = await agent.request(options)
     const data = await response.body.json()
-    
+
     // Check if response came from cache
-    const fromCache = response.headers['x-cache-hit'] === 'true' || 
+    const fromCache = response.headers['x-cache-hit'] === 'true' ||
                      response.headers['x-undici-cache'] === 'hit'
-    
+
     const perfData = tracker.endRequest(requestId)
     if (perfData) {
       perfData.fromCache = fromCache
@@ -131,7 +131,7 @@ async function makeRequestWithAgent(agent, method, path, body = null) {
         cache: fromCache ? 'HIT' : 'MISS'
       }, fromCache ? 'Cache HIT' : 'Cache MISS')
     }
-    
+
     return { status: response.statusCode, data }
   } catch (error) {
     logger.error({ method, path, error: error.message }, 'Agent request failed')
@@ -139,28 +139,28 @@ async function makeRequestWithAgent(agent, method, path, body = null) {
   }
 }
 
-async function makeRequestWithFetch(method, path, body = null) {
+async function makeRequestWithFetch (method, path, body = null) {
   try {
     const requestId = tracker.startRequest(`${method} ${path}`)
-    
+
     const options = {
       method,
       headers: {
         'Content-Type': 'application/json'
       }
     }
-    
+
     if (body) {
       options.body = JSON.stringify(body)
     }
-    
+
     const response = await fetch(`${API_BASE_URL}${path}`, options)
     const data = await response.json()
-    
+
     // Check if response came from cache (fetch with undici agent)
-    const fromCache = response.headers.get('x-cache-hit') === 'true' || 
+    const fromCache = response.headers.get('x-cache-hit') === 'true' ||
                      response.headers.get('x-undici-cache') === 'hit'
-    
+
     const perfData = tracker.endRequest(requestId)
     if (perfData) {
       perfData.fromCache = fromCache
@@ -171,7 +171,7 @@ async function makeRequestWithFetch(method, path, body = null) {
         cache: fromCache ? 'HIT' : 'MISS'
       }, fromCache ? 'Cache HIT (fetch)' : 'Cache MISS (fetch)')
     }
-    
+
     return { status: response.status, data }
   } catch (error) {
     logger.error({ method, path, error: error.message }, 'Fetch request failed')
@@ -179,89 +179,89 @@ async function makeRequestWithFetch(method, path, body = null) {
   }
 }
 
-async function demonstrateCaching() {
+async function demonstrateCaching () {
   logger.info('Starting Undici Redis Cache demonstration...')
-  
+
   const { agent, cacheStore, cacheManager } = await createCachedAgent()
-  
+
   try {
     logger.info('\n--- Phase 1: Initial requests using agent.request() (cache misses) ---')
-    
+
     // Make initial requests that will be cached using agent.request
     await makeRequestWithAgent(agent, 'GET', '/api/products')
     await makeRequestWithAgent(agent, 'GET', '/api/products/1')
     await makeRequestWithAgent(agent, 'GET', '/api/products/category/electronics')
     await makeRequestWithAgent(agent, 'GET', '/api/stats')
     await makeRequestWithAgent(agent, 'GET', '/api/recommendations/user123')
-    
+
     // Wait a bit
     await new Promise(resolve => setTimeout(resolve, 100))
-    
+
     logger.info('\n--- Phase 2: Repeated requests using fetch() (cache hits) ---')
-    
+
     // Make the same requests again using fetch - should be served from cache
     await makeRequestWithFetch('GET', '/api/products')
     await makeRequestWithFetch('GET', '/api/products/1')
     await makeRequestWithFetch('GET', '/api/products/category/electronics')
     await makeRequestWithFetch('GET', '/api/stats')
-    
+
     // Different user ID - will be a cache miss
     await makeRequestWithFetch('GET', '/api/recommendations/user456')
-    
+
     logger.info('\n--- Phase 3: Cache invalidation by tags ---')
-    
+
     // Get current cache stats
     const statsBeforeInvalidation = await cacheManager.getStats()
     logger.info({ stats: statsBeforeInvalidation }, 'Cache stats before invalidation')
-    
+
     // Invalidate all product-related caches
     const invalidated = await cacheManager.invalidateByTags(['products'])
     logger.info({ count: invalidated }, 'Invalidated entries by tag "products"')
-    
+
     // Make request again - should be cache miss after invalidation
     logger.info('\nRequests after cache invalidation using agent:')
     await makeRequestWithAgent(agent, 'GET', '/api/products')
     await makeRequestWithAgent(agent, 'GET', '/api/products/1')
-    
+
     // Stats should still be cached
     await makeRequestWithFetch('GET', '/api/stats')
-    
+
     logger.info('\n--- Phase 4: Update product and automatic invalidation ---')
-    
+
     // Update a product (server will send cache invalidation hints)
     await makeRequestWithFetch('PUT', '/api/products/1', {
       price: 1199.99,
       stock: 45
     })
-    
+
     // Try to get the product again - should reflect the update
     const { data: updatedProduct } = await makeRequestWithAgent(agent, 'GET', '/api/products/1')
     logger.info({ product: updatedProduct.product }, 'Updated product data')
-    
+
     logger.info('\n--- Phase 5: Performance comparison ---')
-    
+
     // Clear all cache for fair comparison
     await cacheManager.clear()
     tracker.requests = [] // Reset tracker
-    
+
     // Make 10 requests without cache benefit using agent
     logger.info('\nMaking 10 sequential requests with agent (first run - no cache):')
     for (let i = 1; i <= 5; i++) {
       await makeRequestWithAgent(agent, 'GET', `/api/products/${i}`)
       await makeRequestWithAgent(agent, 'GET', `/api/products/category/${i % 2 === 0 ? 'electronics' : 'furniture'}`)
     }
-    
+
     const statsNoCacheEnd = tracker.getStats()
-    
+
     // Make the same requests again with cache using fetch
     logger.info('\nMaking the same 10 requests with fetch (with cache):')
     for (let i = 1; i <= 5; i++) {
       await makeRequestWithFetch('GET', `/api/products/${i}`)
       await makeRequestWithFetch('GET', `/api/products/category/${i % 2 === 0 ? 'electronics' : 'furniture'}`)
     }
-    
+
     const statsFinal = tracker.getStats()
-    
+
     logger.info('\n--- Final Performance Summary ---')
     logger.info({
       firstRun: {
@@ -277,14 +277,14 @@ async function demonstrateCaching() {
         timeSaved: (statsNoCacheEnd.avgUncachedDuration - (statsFinal.avgCachedDuration || 0)).toFixed(2) + 'ms per request'
       }
     }, 'Performance improvement with caching')
-    
+
     // Get final cache statistics
     const finalCacheStats = await cacheManager.getStats()
     logger.info({ stats: finalCacheStats }, 'Final cache statistics')
-    
+
     // List some cached entries
     const entries = await cacheManager.list({ limit: 5 })
-    logger.info({ 
+    logger.info({
       entries: entries.map(e => ({
         key: e.key,
         size: e.size,
@@ -292,7 +292,6 @@ async function demonstrateCaching() {
         ttl: e.ttl
       }))
     }, 'Sample cache entries')
-    
   } catch (error) {
     logger.error({ error: error.message }, 'Demonstration failed')
   } finally {
@@ -302,12 +301,6 @@ async function demonstrateCaching() {
     await cacheManager.close()
   }
 }
-
-// Error handling
-process.on('unhandledRejection', (err) => {
-  logger.error({ error: err }, 'Unhandled rejection')
-  process.exit(1)
-})
 
 // Run the demonstration
 demonstrateCaching().then(() => {
