@@ -230,6 +230,12 @@ Ensure your managed Redis instance has the following configuration:
 
 ```mermaid
 graph TB
+    subgraph "Users"
+        U1[User 1]
+        U2[User 2]
+        U3[User N]
+    end
+    
     subgraph "Host 1"
         A1[App + Cache]
         B1[Local Cache]
@@ -250,24 +256,40 @@ graph TB
         E[Invalidation Events]
     end
     
+    subgraph "External APIs"
+        API[HTTP APIs]
+    end
+    
+    U1 --> A1
+    U2 --> A2
+    U3 --> A3
+    
     A1 <--> R
     A2 <--> R
     A3 <--> R
+    
+    A1 --> API
+    A2 --> API
+    A3 --> API
     
     E -.-> B1
     E -.-> B2
     E -.-> B3
     
+    classDef users fill:#e8f5e8
     classDef host fill:#e3f2fd
     classDef redis fill:#ffebee
     classDef events fill:#fff3e0
+    classDef api fill:#f3e5f5
     
+    class U1,U2,U3 users
     class A1,A2,A3,B1,B2,B3 host
     class R redis
     class E events
+    class API api
 ```
 
-**Key Benefits**: Shared Redis storage with local caching and real-time invalidation across all hosts.
+**Flow**: Users make requests → Apps check local/Redis cache → If miss, fetch from APIs → Cache responses → Invalidation events sync all hosts.
 
 ## Cache Key Structure
 
