@@ -490,4 +490,4 @@ This project is part of the Platformatic ecosystem. For contributing guidelines,
 
 - [Undici](https://github.com/nodejs/undici) - HTTP/1.1 client for Node.js
 - [iovalkey](https://github.com/valkey-io/iovalkey) - High-performance Valkey client
-- [Platformatic](https://github.com/platformatic/platformatic) - Build APIs fast
+- [Platformatic](https://github.com/platformatic/platformatic) - Enterprise-Ready Node.js
