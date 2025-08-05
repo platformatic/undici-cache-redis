@@ -103,7 +103,7 @@ Our Redis-backed cache operates on two levels for maximum performance:
 ```mermaid
 graph TB
     subgraph "Your Application"
-        A[HTTP Request] --> B[Undici Client]
+        A[HTTP Request] --> B[Undici Agent]
         B --> C[Cache Interceptor]
         C --> D[RedisCacheStore]
     end
@@ -128,7 +128,7 @@ graph TB
 ### The Magic: Dual-Layer Caching
 1. **Local TrackingCache**: Lightning-fast in-memory cache for hot data
 2. **Redis Backend**: Shared persistent cache across all servers
-3. **Client-Side Tracking**: Redis notifies when cached data changes
+3. **Agent-Side Tracking**: Redis notifies when cached data changes
 4. **Smart Invalidation**: Automatic cleanup based on HTTP semantics
 
 ## Step-by-Step: From Zero to Cached in 5 Minutes
@@ -187,12 +187,12 @@ fastify.get('/api/products/:id', async (request, reply) => {
 fastify.listen({ port: 3000 });
 ```
 
-### Step 3: Implement the Cached Client
+### Step 3: Implement the Cached Agent
 
 Now for the fun part – let's add caching:
 
 ```javascript
-// client.js
+// agent.js
 const { Agent, interceptors, setGlobalDispatcher } = require('undici');
 const { RedisCacheStore } = require('@platformatic/undici-cache-redis');
 
@@ -352,10 +352,10 @@ GET /api/data
 Accept-Language: fr
 ```
 
-### 3. Client-Side Tracking: Minimize Redis Calls
+### 3. Agent-Side Tracking: Minimize Redis Calls
 ```javascript
 const store = new RedisCacheStore({
-  tracking: true, // Enable Redis client-side caching
+  tracking: true, // Enable Redis agent-side caching
   maxSize: 100 * 1024 * 1024, // 100MB local cache
 });
 ```
