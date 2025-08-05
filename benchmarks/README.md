@@ -8,7 +8,7 @@ The benchmarks test a realistic proxy server scenario:
 
 ```
 ┌────────────┐         ┌─────────────────┐         ┌──────────────┐
-│ Autocannon │ ──────> │ Server FOO      │ ──────> │ Server B     │
+│ Autocannon │ ──────> │ Server FOO      │ ──────> │ Server Bar   │
 │            │         │ (Proxy)         │         │ (Backend API)│
 └────────────┘         │                 │         └──────────────┘
                        │ - No Cache      │
@@ -19,15 +19,15 @@ The benchmarks test a realistic proxy server scenario:
 
 - **Autocannon**: Load testing tool that generates HTTP requests
 - **Server FOO (Proxy)**: Proxy server using Undici with different cache configurations
-- **Server B (Backend API)**: The actual API server with simulated latency
+- **Server Bar (Backend API)**: The actual API server with simulated latency
 
-This architecture tests the real-world scenario where an application (Server FOO) uses Undici with caching to make requests to upstream services (Server B).
+This architecture tests the real-world scenario where an application (Server FOO) uses Undici with caching to make requests to upstream services (Server Bar).
 
 ## Requirements
 
 - Node.js >= 20
 - Redis server running on localhost:6379
-- Backend API server (Server B) running on localhost:3000
+- Backend API server (Server Bar) running on localhost:3000
 
 ## Setup
 
@@ -41,7 +41,7 @@ npm install
 docker run -p 6379:6379 redis:alpine
 ```
 
-3. Start the Backend API Server (Server B) from project root:
+3. Start the Backend API Server (Server Bar) from project root:
 ```bash
 npm run example:server
 # or
@@ -115,16 +115,16 @@ The benchmarks measure:
 ### Expected Performance Improvements
 
 Based on actual benchmark results with the proxy architecture:
-- **Memory Cache**: 1000x+ improvement over no cache (2925ms → <1ms)
-- **Redis Cache**: 1000x+ improvement over no cache (2925ms → <1ms)
+- **Memory Cache**: 555x improvement over no cache (14.72ms → 0.20ms)
+- **Redis Cache**: 550x improvement over no cache (14.72ms → 0.20ms)
 - **Scalability**: Redis cache can be shared across multiple proxy instances
 
 **Actual Results:**
 | Scenario | Latency (avg) | Latency (p95) | Requests/sec | Improvement |
 |----------|---------------|---------------|--------------|-------------|
-| No Cache | 2925ms | 7341ms | 2.87 | Baseline |
-| Memory Cache | <1ms | <1ms | 1000+ | **>1000x faster** |
-| Redis Cache | <1ms | <1ms | 1000+ | **>1000x faster** |
+| No Cache | 14.72ms | 23.98ms | 86.98 | Baseline |
+| Memory Cache | 0.20ms | 0.26ms | 48,263 | **555x faster** |
+| Redis Cache | 0.20ms | 0.26ms | 47,885 | **550x faster** |
 
 The improvements depend on:
 - Backend API latency (higher latency = more benefit from caching)
@@ -133,12 +133,12 @@ The improvements depend on:
 
 ## Backend API Endpoints
 
-The backend server (Server B) simulates realistic API endpoints with latency:
-- `/api/products` - 200-600ms (product listing)
-- `/api/products/:id` - 100-300ms (single product)
-- `/api/products/category/:category` - 150-400ms (category filter)
-- `/api/stats` - 500-1000ms (expensive calculation)
-- `/api/recommendations/:userId` - 300-800ms (personalized data)
+The backend server (Server Bar) simulates realistic API endpoints with 1ms CPU-bound processing using atomic-sleep:
+- `/api/products` - 1ms atomic-sleep (product listing)
+- `/api/products/:id` - 1ms atomic-sleep (single product)
+- `/api/products/category/:category` - 1ms atomic-sleep (category filter)
+- `/api/stats` - 1ms atomic-sleep (expensive calculation)
+- `/api/recommendations/:userId` - 1ms atomic-sleep (personalized data)
 
 ## Proxy Server Configuration
 

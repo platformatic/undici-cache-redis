@@ -15,9 +15,8 @@ const products = {
 }
 
 // Simulated CPU-bound activity
-const simulateCpuWork = (min = 10, max = 30) => {
-  const delay = Math.floor(Math.random() * (max - min + 1)) + min
-  sleep(delay)
+const simulateCpuWork = () => {
+  sleep(1)
 }
 
 // Hook to add cache tags based on endpoint
@@ -48,7 +47,7 @@ app.addHook('onRequest', async (request, reply) => {
 
 // GET all products
 app.get('/api/products', async (request, reply) => {
-  simulateCpuWork(200, 600)
+  simulateCpuWork()
 
   const productList = Object.values(products)
   reply.header('Cache-Control', 'public, max-age=300') // Cache for 5 minutes
@@ -62,7 +61,7 @@ app.get('/api/products', async (request, reply) => {
 // GET product by ID
 app.get('/api/products/:id', async (request, reply) => {
   const { id } = request.params
-  simulateCpuWork(100, 300)
+  simulateCpuWork()
 
   const product = products[id]
   if (!product) {
@@ -80,7 +79,7 @@ app.get('/api/products/:id', async (request, reply) => {
 // GET products by category
 app.get('/api/products/category/:category', async (request, reply) => {
   const { category } = request.params
-  simulateCpuWork(150, 400)
+  simulateCpuWork()
 
   const categoryProducts = Object.values(products).filter(p => p.category === category)
 
@@ -96,7 +95,7 @@ app.get('/api/products/category/:category', async (request, reply) => {
 // GET personalized recommendations (changes frequently)
 app.get('/api/recommendations/:userId', async (request, reply) => {
   const { userId } = request.params
-  simulateCpuWork(300, 800)
+  simulateCpuWork()
 
   // Simulate personalized recommendations
   const allProducts = Object.values(products)
@@ -121,7 +120,7 @@ app.get('/api/recommendations/:userId', async (request, reply) => {
 
 // GET statistics (expensive operation)
 app.get('/api/stats', async (request, reply) => {
-  simulateCpuWork(500, 1000) // Expensive operation
+  simulateCpuWork() // Expensive operation
 
   const stats = {
     totalProducts: Object.keys(products).length,
@@ -143,7 +142,7 @@ app.put('/api/products/:id', async (request, reply) => {
   const { id } = request.params
   const updates = request.body
 
-  simulateCpuWork(100, 200)
+  simulateCpuWork()
 
   if (!products[id]) {
     reply.code(404)

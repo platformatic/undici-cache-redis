@@ -21,7 +21,7 @@ function calculateReduction (baseline, current) {
 async function runAllBenchmarks () {
   console.log('🚀 Running All Proxy Benchmarks')
   console.log('='.repeat(60))
-  console.log('Architecture: Autocannon -> Server FOO (proxy) -> Server B (backend)')
+  console.log('Architecture: Autocannon -> Server FOO (proxy) -> Server Bar (backend)')
   console.log('='.repeat(60))
   console.log()
 
@@ -46,7 +46,7 @@ async function runAllBenchmarks () {
     console.log('📊 BENCHMARK SUMMARY')
     console.log('='.repeat(60))
     console.log()
-    console.log('Architecture: Autocannon -> Server FOO (proxy) -> Server B (backend)')
+    console.log('Architecture: Autocannon -> Server FOO (proxy) -> Server Bar (backend)')
     console.log()
 
     // Requests per second comparison

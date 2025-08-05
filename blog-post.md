@@ -263,7 +263,7 @@ async function demo() {
   // Performance improvement
   const improvement = Math.round(req1.duration / req2.duration);
   console.log(`\n⚡ Performance: ${improvement}x faster with cache!`);
-  console.log(`Note: In production with proxy architectures, expect 10-15x improvement`);
+  console.log(`Note: In production with proxy architectures, expect 100-500x improvement`);
 }
 
 demo().catch(console.error);
@@ -309,8 +309,8 @@ We ran benchmarks using a realistic proxy architecture to measure real-world per
 ```
 
 **The Test Scenario:**
-- **Server B** (Backend API): Simulates a real external API with 200-1000ms response times (typical for database queries, third-party services, etc.)
-- **Server FOO** (Your Application): A Node.js proxy using Undici to make requests to Server B, with three configurations:
+- **Server Bar** (Backend API): Simulates a real external API with 1ms CPU-bound processing (using atomic-sleep to simulate database queries, third-party services, etc.)
+- **Server FOO** (Your Application): A Node.js proxy using Undici to make requests to Server Bar, with three configurations:
   1. **No Cache**: Every request goes to the backend (baseline)
   2. **Memory Cache**: Uses Undici's built-in memory cache
   3. **Redis Cache**: Uses our Redis-backed cache store
@@ -320,13 +320,13 @@ This mirrors production patterns where your application acts as a middle layer, 
 
 | Scenario | Latency (avg) | Latency (p95) | Requests/sec | Improvement |
 |----------|---------------|---------------|--------------|-------------|
-| No Cache | 2925ms | 7341ms | 2.87 | Baseline |
-| Memory Cache | <1ms | <1ms | 1000+ | **>1000x faster** |
-| Redis Cache | <1ms | <1ms | 1000+ | **>1000x faster** |
+| No Cache | 14.72ms | 23.98ms | 86.98 | Baseline |
+| Memory Cache | 0.20ms | 0.26ms | 48,263 | **555x faster** |
+| Redis Cache | 0.20ms | 0.26ms | 47,885 | **550x faster** |
 
 ### Key Insights:
-- **1000x+ performance improvement** with caching enabled  
-- **99.97% reduction** in average latency (2925ms → <1ms)
+- **550x+ performance improvement** with caching enabled  
+- **98.6% reduction** in average latency (14.72ms → 0.20ms)
 - **Shared cache** across all proxy instances (Redis only)
 - **Constant memory usage** on proxy servers (Redis only)
 - **Sub-millisecond response times** for all cached requests
@@ -437,7 +437,7 @@ What started as an enterprise solution for our customers has proven too valuable
 By combining the performance of Undici, the reliability of Redis, and intelligent cache management, we've created a solution that's both enterprise-grade and accessible to every developer.
 
 The benefits are clear:
-- ⚡ **Performance**: 1000x+ faster response times
+- ⚡ **Performance**: 550x+ faster response times
 - 💰 **Cost Savings**: Reduce API calls by 90%+
 - 🛠️ **Simplicity**: Enterprise caching with just `setGlobalDispatcher(agent)`
 - 🔄 **Scalability**: Shared cache across unlimited servers
