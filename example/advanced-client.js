@@ -2,18 +2,7 @@
 
 const { Agent, Client, interceptors, setGlobalDispatcher } = require('undici')
 const { RedisCacheStore, RedisCacheManager } = require('../index.js')
-const pino = require('pino')
 const { promisify } = require('util')
-
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'yyyy-mm-dd HH:MM:ss'
-    }
-  }
-})
 
 const sleep = promisify(setTimeout)
 const API_BASE_URL = 'http://localhost:3000'
@@ -30,7 +19,7 @@ async function createAdvancedCacheStore () {
 
     // Custom error handling with retry logic
     errorCallback: (err) => {
-      logger.error({ error: err.message, code: err.code }, 'Redis error')
+      console.error({ error: err.message, code: err.code }, 'Redis error')
       // Could implement circuit breaker pattern here
     },
 
@@ -63,7 +52,7 @@ async function createAdvancedAgent () {
 
 // Demonstrate cache stampede protection
 async function demonstrateCacheStampede () {
-  logger.info('\n=== Cache Stampede Protection Demo ===\n')
+  console.info('\n=== Cache Stampede Protection Demo ===\n')
 
   const { agent: sharedAgent, cacheStore } = await createAdvancedAgent()
   const cacheManager = new RedisCacheManager({
@@ -73,7 +62,7 @@ async function demonstrateCacheStampede () {
   // Clear cache to start fresh
   await cacheManager.clear()
 
-  logger.info('Simulating 5 concurrent fetch requests for the same expensive resource...')
+  console.info('Simulating 5 concurrent fetch requests for the same expensive resource...')
 
   // Make concurrent requests for expensive operation using fetch (which uses the shared agent)
   const startTime = Date.now()
@@ -86,7 +75,7 @@ async function demonstrateCacheStampede () {
       }).then(async (response) => {
         const data = await response.json()
         const duration = Date.now() - startTime
-        logger.info({
+        console.info({
           client: i,
           duration: duration + 'ms',
           cached: response.headers.get('x-cache-hit') === 'true' || response.headers.get('x-undici-cache') === 'hit'
@@ -98,7 +87,7 @@ async function demonstrateCacheStampede () {
 
   await Promise.all(promises)
 
-  logger.info({
+  console.info({
     totalTime: Date.now() - startTime + 'ms',
     message: 'All fetch requests completed. Only one should have hit the origin server.'
   })
@@ -111,7 +100,7 @@ async function demonstrateCacheStampede () {
 
 // Demonstrate conditional caching based on response
 async function demonstrateConditionalCaching () {
-  logger.info('\n=== Conditional Caching Demo ===\n')
+  console.info('\n=== Conditional Caching Demo ===\n')
 
   const cacheStore = new RedisCacheStore({
     redis: 'redis://localhost:6379',
@@ -141,7 +130,7 @@ async function demonstrateConditionalCaching () {
   })
 
   // Test different scenarios
-  logger.info('Testing conditional caching scenarios...')
+  console.info('Testing conditional caching scenarios...')
 
   // 1. Normal cacheable request
   const res1 = await client.request({
@@ -149,7 +138,7 @@ async function demonstrateConditionalCaching () {
     path: '/api/products/1'
   })
   await res1.body.json()
-  logger.info('Request 1: Product detail - should be cached')
+  console.info('Request 1: Product detail - should be cached')
 
   // 2. Error response (404)
   try {
@@ -161,7 +150,7 @@ async function demonstrateConditionalCaching () {
   } catch (err) {
     // Expected
   }
-  logger.info('Request 2: 404 error - should NOT be cached')
+  console.info('Request 2: 404 error - should NOT be cached')
 
   // 3. Personalized content
   const res3 = await client.request({
@@ -169,12 +158,12 @@ async function demonstrateConditionalCaching () {
     path: '/api/recommendations/user123'
   })
   await res3.body.json()
-  logger.info('Request 3: Personalized recommendations - caching based on headers')
+  console.info('Request 3: Personalized recommendations - caching based on headers')
 
   // Check what was actually cached
   const cacheManager = new RedisCacheManager({ redis: 'redis://localhost:6379' })
   const stats = await cacheManager.getStats()
-  logger.info({ cachedEntries: stats.entries }, 'Cache statistics after conditional caching')
+  console.info({ cachedEntries: stats.entries }, 'Cache statistics after conditional caching')
 
   // Cleanup
   await client.close()
@@ -184,7 +173,7 @@ async function demonstrateConditionalCaching () {
 
 // Demonstrate cache warming and preloading
 async function demonstrateCacheWarming () {
-  logger.info('\n=== Cache Warming Demo ===\n')
+  console.info('\n=== Cache Warming Demo ===\n')
 
   const cacheStore = await createAdvancedCacheStore()
   const client = new Client(API_BASE_URL, {
@@ -203,7 +192,7 @@ async function demonstrateCacheWarming () {
     '/api/stats'
   ]
 
-  logger.info(`Warming cache with ${urlsToWarm.length} endpoints...`)
+  console.info(`Warming cache with ${urlsToWarm.length} endpoints...`)
 
   const warmupStart = Date.now()
   const warmupPromises = urlsToWarm.map(async (path) => {
@@ -220,27 +209,27 @@ async function demonstrateCacheWarming () {
   const warmupResults = await Promise.all(warmupPromises)
   const warmupDuration = Date.now() - warmupStart
 
-  logger.info({
+  console.info({
     totalDuration: warmupDuration + 'ms',
     endpoints: warmupResults
   }, 'Cache warming completed')
 
   // Now make requests again to show cache benefits
-  logger.info('\nMaking requests again (should all be cache hits)...')
+  console.info('\nMaking requests again (should all be cache hits)...')
 
   const cachedStart = Date.now()
   for (const path of urlsToWarm) {
     const start = Date.now()
     const response = await client.request({ method: 'GET', path })
     await response.body.json()
-    logger.info({
+    console.info({
       path,
       duration: (Date.now() - start) + 'ms',
       cached: true
     }, 'Cache hit')
   }
 
-  logger.info({
+  console.info({
     warmupTime: warmupDuration + 'ms',
     cachedTime: (Date.now() - cachedStart) + 'ms',
     speedup: (warmupDuration / (Date.now() - cachedStart)).toFixed(1) + 'x'
@@ -253,7 +242,7 @@ async function demonstrateCacheWarming () {
 
 // Demonstrate cache analytics and monitoring
 async function demonstrateCacheAnalytics () {
-  logger.info('\n=== Cache Analytics Demo ===\n')
+  console.info('\n=== Cache Analytics Demo ===\n')
 
   const cacheManager = new RedisCacheManager({
     redis: 'redis://localhost:6379'
@@ -261,7 +250,7 @@ async function demonstrateCacheAnalytics () {
 
   // Get detailed cache statistics
   const stats = await cacheManager.getStats()
-  logger.info({
+  console.info({
     totalEntries: stats.entries,
     totalSize: stats.size,
     avgEntrySize: stats.entries > 0 ? Math.round(stats.size / stats.entries) : 0
@@ -278,7 +267,7 @@ async function demonstrateCacheAnalytics () {
     }
   }
 
-  logger.info({ tagDistribution: tagAnalysis }, 'Cache entries by tag')
+  console.info({ tagDistribution: tagAnalysis }, 'Cache entries by tag')
 
   // Find large cache entries
   const largeEntries = entries
@@ -293,7 +282,7 @@ async function demonstrateCacheAnalytics () {
     }))
 
   if (largeEntries.length > 0) {
-    logger.info({ entries: largeEntries }, 'Largest cache entries')
+    console.info({ entries: largeEntries }, 'Largest cache entries')
   }
 
   // Find soon-to-expire entries
@@ -306,7 +295,7 @@ async function demonstrateCacheAnalytics () {
     }))
 
   if (expiringEntries.length > 0) {
-    logger.info({ entries: expiringEntries }, 'Entries expiring soon')
+    console.info({ entries: expiringEntries }, 'Entries expiring soon')
   }
 
   await cacheManager.close()
@@ -318,7 +307,7 @@ async function runAdvancedDemo () {
     // Ensure server is running
     const healthCheck = await fetch(`${API_BASE_URL}/health`).catch(() => null)
     if (!healthCheck || !healthCheck.ok) {
-      logger.error('API server is not running. Please start the server first.')
+      console.error('API server is not running. Please start the server first.')
       process.exit(1)
     }
 
@@ -334,9 +323,9 @@ async function runAdvancedDemo () {
 
     await demonstrateCacheAnalytics()
 
-    logger.info('\n=== Advanced demonstration completed! ===')
+    console.info('\n=== Advanced demonstration completed! ===')
   } catch (error) {
-    logger.error({ error: error.message }, 'Advanced demo failed')
+    console.error({ error: error.message }, 'Advanced demo failed')
     process.exit(1)
   }
 }

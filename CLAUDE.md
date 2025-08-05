@@ -38,6 +38,27 @@ npm run valkey
 npm run test:typescript
 ```
 
+### Benchmarking
+```bash
+# Prerequisites: Start Valkey/Redis container
+npm run valkey
+
+# Run complete benchmark suite (proxy architecture)
+npm run bench
+
+# Run individual benchmark scenarios
+npm run bench:proxy:no-cache      # No caching
+npm run bench:proxy:memory-cache  # In-memory caching
+npm run bench:proxy:redis-cache   # Redis/Valkey caching
+
+# Start servers manually for debugging
+npm run bench:server              # Start backend server (port 3000)
+CACHE_TYPE=redis npm run bench:proxy  # Start proxy server (port 3001)
+
+# Alternative: Use the automated script
+./run-benchmarks.sh
+```
+
 ### Code Quality
 ```bash
 # Run ESLint

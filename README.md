@@ -482,6 +482,28 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+## Benchmarking
+
+This project includes comprehensive benchmarks to measure performance improvements with different caching strategies.
+
+### Quick Benchmark
+```bash
+# Automated benchmark with all prerequisites checked
+./run-benchmarks.sh
+
+# Or run manually
+npm run bench
+```
+
+The benchmarks test a realistic proxy server architecture:
+- **Server FOO (Proxy)**: Uses Undici with different cache configurations  
+- **Server B (Backend)**: API server with simulated latency
+- **Autocannon**: Load testing tool measuring performance
+
+Expected results show **10-15x performance improvement** with caching enabled.
+
+For detailed benchmarking instructions, see [benchmarks/README.md](./benchmarks/README.md).
+
 ## Contributing
 
 This project is part of the Platformatic ecosystem. For contributing guidelines, please refer to the main [Platformatic repository](https://github.com/platformatic/platformatic).

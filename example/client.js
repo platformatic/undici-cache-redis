@@ -2,17 +2,6 @@
 
 const { Agent, interceptors, setGlobalDispatcher } = require('undici')
 const { RedisCacheStore, RedisCacheManager } = require('../index.js')
-const pino = require('pino')
-
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'yyyy-mm-dd HH:MM:ss'
-    }
-  }
-})
 
 const API_BASE_URL = 'http://localhost:3000'
 
@@ -72,7 +61,7 @@ async function createCachedAgent () {
     tracking: true, // Enable client-side tracking for performance
     trackingCacheSize: 100, // LRU cache size
     errorCallback: (err) => {
-      logger.error({ error: err.message }, 'Redis cache error')
+      console.error('Redis cache error:', err.message)
     }
   })
 
@@ -124,7 +113,7 @@ async function makeRequestWithAgent (agent, method, path, body = null) {
     const perfData = tracker.endRequest(requestId)
     if (perfData) {
       perfData.fromCache = fromCache
-      logger.info({
+      console.info({
         method,
         path,
         duration: perfData.duration.toFixed(2) + 'ms',
@@ -134,7 +123,7 @@ async function makeRequestWithAgent (agent, method, path, body = null) {
 
     return { status: response.statusCode, data }
   } catch (error) {
-    logger.error({ method, path, error: error.message }, 'Agent request failed')
+    console.error({ method, path, error: error.message }, 'Agent request failed')
     throw error
   }
 }
@@ -164,7 +153,7 @@ async function makeRequestWithFetch (method, path, body = null) {
     const perfData = tracker.endRequest(requestId)
     if (perfData) {
       perfData.fromCache = fromCache
-      logger.info({
+      console.info({
         method,
         path,
         duration: perfData.duration.toFixed(2) + 'ms',
@@ -174,18 +163,18 @@ async function makeRequestWithFetch (method, path, body = null) {
 
     return { status: response.status, data }
   } catch (error) {
-    logger.error({ method, path, error: error.message }, 'Fetch request failed')
+    console.error({ method, path, error: error.message }, 'Fetch request failed')
     throw error
   }
 }
 
 async function demonstrateCaching () {
-  logger.info('Starting Undici Redis Cache demonstration...')
+  console.info('Starting Undici Redis Cache demonstration...')
 
   const { agent, cacheStore, cacheManager } = await createCachedAgent()
 
   try {
-    logger.info('\n--- Phase 1: Initial requests using agent.request() (cache misses) ---')
+    console.info('\n--- Phase 1: Initial requests using agent.request() (cache misses) ---')
 
     // Make initial requests that will be cached using agent.request
     await makeRequestWithAgent(agent, 'GET', '/api/products')
@@ -197,7 +186,7 @@ async function demonstrateCaching () {
     // Wait a bit
     await new Promise(resolve => setTimeout(resolve, 100))
 
-    logger.info('\n--- Phase 2: Repeated requests using fetch() (cache hits) ---')
+    console.info('\n--- Phase 2: Repeated requests using fetch() (cache hits) ---')
 
     // Make the same requests again using fetch - should be served from cache
     await makeRequestWithFetch('GET', '/api/products')
@@ -208,25 +197,25 @@ async function demonstrateCaching () {
     // Different user ID - will be a cache miss
     await makeRequestWithFetch('GET', '/api/recommendations/user456')
 
-    logger.info('\n--- Phase 3: Cache invalidation by tags ---')
+    console.info('\n--- Phase 3: Cache invalidation by tags ---')
 
     // Get current cache stats
     const statsBeforeInvalidation = await cacheManager.getStats()
-    logger.info({ stats: statsBeforeInvalidation }, 'Cache stats before invalidation')
+    console.info({ stats: statsBeforeInvalidation }, 'Cache stats before invalidation')
 
     // Invalidate all product-related caches
     const invalidated = await cacheManager.invalidateByTags(['products'])
-    logger.info({ count: invalidated }, 'Invalidated entries by tag "products"')
+    console.info({ count: invalidated }, 'Invalidated entries by tag "products"')
 
     // Make request again - should be cache miss after invalidation
-    logger.info('\nRequests after cache invalidation using agent:')
+    console.info('\nRequests after cache invalidation using agent:')
     await makeRequestWithAgent(agent, 'GET', '/api/products')
     await makeRequestWithAgent(agent, 'GET', '/api/products/1')
 
     // Stats should still be cached
     await makeRequestWithFetch('GET', '/api/stats')
 
-    logger.info('\n--- Phase 4: Update product and automatic invalidation ---')
+    console.info('\n--- Phase 4: Update product and automatic invalidation ---')
 
     // Update a product (server will send cache invalidation hints)
     await makeRequestWithFetch('PUT', '/api/products/1', {
@@ -236,16 +225,16 @@ async function demonstrateCaching () {
 
     // Try to get the product again - should reflect the update
     const { data: updatedProduct } = await makeRequestWithAgent(agent, 'GET', '/api/products/1')
-    logger.info({ product: updatedProduct.product }, 'Updated product data')
+    console.info({ product: updatedProduct.product }, 'Updated product data')
 
-    logger.info('\n--- Phase 5: Performance comparison ---')
+    console.info('\n--- Phase 5: Performance comparison ---')
 
     // Clear all cache for fair comparison
     await cacheManager.clear()
     tracker.requests = [] // Reset tracker
 
     // Make 10 requests without cache benefit using agent
-    logger.info('\nMaking 10 sequential requests with agent (first run - no cache):')
+    console.info('\nMaking 10 sequential requests with agent (first run - no cache):')
     for (let i = 1; i <= 5; i++) {
       await makeRequestWithAgent(agent, 'GET', `/api/products/${i}`)
       await makeRequestWithAgent(agent, 'GET', `/api/products/category/${i % 2 === 0 ? 'electronics' : 'furniture'}`)
@@ -254,7 +243,7 @@ async function demonstrateCaching () {
     const statsNoCacheEnd = tracker.getStats()
 
     // Make the same requests again with cache using fetch
-    logger.info('\nMaking the same 10 requests with fetch (with cache):')
+    console.info('\nMaking the same 10 requests with fetch (with cache):')
     for (let i = 1; i <= 5; i++) {
       await makeRequestWithFetch('GET', `/api/products/${i}`)
       await makeRequestWithFetch('GET', `/api/products/category/${i % 2 === 0 ? 'electronics' : 'furniture'}`)
@@ -262,8 +251,8 @@ async function demonstrateCaching () {
 
     const statsFinal = tracker.getStats()
 
-    logger.info('\n--- Final Performance Summary ---')
-    logger.info({
+    console.info('\n--- Final Performance Summary ---')
+    console.info({
       firstRun: {
         avgDuration: statsNoCacheEnd.avgUncachedDuration.toFixed(2) + 'ms',
         requests: 10
@@ -280,11 +269,11 @@ async function demonstrateCaching () {
 
     // Get final cache statistics
     const finalCacheStats = await cacheManager.getStats()
-    logger.info({ stats: finalCacheStats }, 'Final cache statistics')
+    console.info({ stats: finalCacheStats }, 'Final cache statistics')
 
     // List some cached entries
     const entries = await cacheManager.list({ limit: 5 })
-    logger.info({
+    console.info({
       entries: entries.map(e => ({
         key: e.key,
         size: e.size,
@@ -293,7 +282,7 @@ async function demonstrateCaching () {
       }))
     }, 'Sample cache entries')
   } catch (error) {
-    logger.error({ error: error.message }, 'Demonstration failed')
+    console.error({ error: error.message }, 'Demonstration failed')
   } finally {
     // Cleanup
     await agent.close()
@@ -304,9 +293,9 @@ async function demonstrateCaching () {
 
 // Run the demonstration
 demonstrateCaching().then(() => {
-  logger.info('Demonstration completed successfully!')
+  console.info('Demonstration completed successfully!')
   process.exit(0)
 }).catch((err) => {
-  logger.error({ error: err }, 'Demonstration failed')
+  console.error({ error: err }, 'Demonstration failed')
   process.exit(1)
 })

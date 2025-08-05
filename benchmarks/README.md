@@ -2,17 +2,37 @@
 
 This directory contains performance benchmarks for `@platformatic/undici-cache-redis` using [autocannon](https://github.com/mcollina/autocannon).
 
+## Architecture
+
+The benchmarks test a realistic proxy server scenario:
+
+```
+┌────────────┐         ┌─────────────────┐         ┌──────────────┐
+│ Autocannon │ ──────> │ Server FOO      │ ──────> │ Server B     │
+│            │         │ (Proxy)         │         │ (Backend API)│
+└────────────┘         │                 │         └──────────────┘
+                       │ - No Cache      │
+                       │ - Memory Cache  │
+                       │ - Redis Cache   │
+                       └─────────────────┘
+```
+
+- **Autocannon**: Load testing tool that generates HTTP requests
+- **Server FOO (Proxy)**: Proxy server using Undici with different cache configurations
+- **Server B (Backend API)**: The actual API server with simulated latency
+
+This architecture tests the real-world scenario where an application (Server FOO) uses Undici with caching to make requests to upstream services (Server B).
+
 ## Requirements
 
 - Node.js >= 20
 - Redis server running on localhost:6379
-- API server running on localhost:3000
+- Backend API server (Server B) running on localhost:3000
 
 ## Setup
 
-1. Install dependencies:
+1. Install dependencies from the project root:
 ```bash
-cd benchmarks
 npm install
 ```
 
@@ -21,7 +41,7 @@ npm install
 docker run -p 6379:6379 redis:alpine
 ```
 
-3. Start the API server (from project root):
+3. Start the Backend API Server (Server B) from project root:
 ```bash
 npm run example:server
 # or
@@ -30,34 +50,59 @@ node example/server.js
 
 ## Running Benchmarks
 
-### Run all benchmarks
+### Automated Script (Recommended)
+```bash
+./run-benchmarks.sh
+```
+
+This script will:
+1. Check all prerequisites (Node.js, dependencies, Redis connection)
+2. Start the backend API server if not already running
+3. Run all benchmark scenarios automatically
+4. Clean up processes when finished
+
+### Manual Setup
+If you prefer to run benchmarks manually:
+
+1. Start the backend server:
+```bash
+npm run example:server
+```
+
+2. In another terminal, run all benchmarks:
 ```bash
 npm run bench
 ```
 
+This will:
+1. Start a proxy server (Server FOO) with no cache and run benchmarks
+2. Start a proxy server with memory cache and run benchmarks
+3. Start a proxy server with Redis cache and run benchmarks
+4. Display a summary comparing all three scenarios
+
 ### Run individual benchmarks
 ```bash
-npm run bench:no-cache      # Test without caching
-npm run bench:memory-cache  # Test with in-memory cache
-npm run bench:redis-cache   # Test with Redis cache
+npm run bench:proxy:no-cache      # Test proxy without caching
+npm run bench:proxy:memory-cache  # Test proxy with in-memory cache
+npm run bench:proxy:redis-cache   # Test proxy with Redis cache
 ```
 
 ## Benchmark Scenarios
 
-### 1. No Cache (`bench-no-cache.js`)
-- Direct API calls without any caching
+### 1. No Cache (`bench-proxy-no-cache.js`)
+- Proxy server forwards all requests to backend without caching
+- Every request hits the backend API
 - Baseline performance measurement
-- All requests hit the origin server
 
-### 2. In-Memory Cache (`bench-memory-cache.js`)
-- Simple Map-based cache implementation
-- Single-process caching with TTL support
+### 2. Memory Cache (`bench-proxy-memory-cache.js`)
+- Proxy uses Undici's built-in memory cache interceptor
+- Cache is local to the proxy process
 - Fast but not shared across instances
 
-### 3. Redis Cache (`bench-redis-cache.js`)
-- Full Redis-backed caching with client-side tracking
-- Shared cache across multiple app instances
-- Production-ready configuration
+### 3. Redis Cache (`bench-proxy-redis-cache.js`)
+- Proxy uses Redis-backed cache with client-side tracking
+- Cache is shared across multiple proxy instances
+- Production-ready configuration with cache tags support
 
 ## Understanding Results
 
@@ -69,50 +114,86 @@ The benchmarks measure:
 
 ### Expected Performance Improvements
 
-Based on typical results:
-- **Memory Cache**: 10-50x improvement over no cache
-- **Redis Cache**: 5-25x improvement over no cache
-- **Scalability**: Redis cache shared across all app instances
+Based on typical results with the proxy architecture:
+- **Memory Cache**: 5-20x improvement over no cache
+- **Redis Cache**: 4-15x improvement over no cache
+- **Scalability**: Redis cache can be shared across multiple proxy instances
 
-### Factors Affecting Performance
+The improvements depend on:
+- Backend API latency (higher latency = more benefit from caching)
+- Cache hit ratio (more repeated requests = better performance)
+- Payload size (larger responses = more network savings)
 
-1. **Cache Hit Ratio**: Higher hit ratio = better performance
-2. **Payload Size**: Larger responses benefit more from caching
-3. **Network Latency**: Redis adds small network overhead vs memory
-4. **API Response Time**: Slower APIs show more dramatic improvements
+## Backend API Endpoints
 
-## Interpreting the Numbers
+The backend server (Server B) simulates realistic API endpoints with latency:
+- `/api/products` - 200-600ms (product listing)
+- `/api/products/:id` - 100-300ms (single product)
+- `/api/products/category/:category` - 150-400ms (category filter)
+- `/api/stats` - 500-1000ms (expensive calculation)
+- `/api/recommendations/:userId` - 300-800ms (personalized data)
 
-The benchmarks use realistic API endpoints with simulated latency:
-- `/api/products` - 200-600ms simulated processing time
-- `/api/products/1` - 100-300ms simulated database lookup
-- `/api/stats` - 500-1000ms simulated expensive calculation
+## Proxy Server Configuration
 
-This simulates real-world scenarios where caching provides significant benefits.
+The proxy server (`proxy-server.js`) can be configured with environment variables:
+- `CACHE_TYPE`: Type of cache to use (`none`, `memory`, `redis`)
+- `PROXY_PORT`: Port for the proxy server (default: 3001)
+- `BACKEND_URL`: URL of the backend API (default: http://localhost:3000)
 
-## Customizing Benchmarks
+Example:
+```bash
+CACHE_TYPE=redis PROXY_PORT=8080 node proxy-server.js
+```
 
-You can modify the benchmark parameters:
+## Interpreting Cache Performance
 
+### Memory Cache Characteristics
+- **Pros**: Lowest latency, no network overhead
+- **Cons**: Not shared, limited by process memory, lost on restart
+- **Use case**: Single instance applications with moderate traffic
+
+### Redis Cache Characteristics
+- **Pros**: Shared across instances, persistent, supports cache tags
+- **Cons**: Small network overhead, requires Redis infrastructure
+- **Use case**: Multi-instance deployments, microservices
+
+## Advanced Configuration
+
+### Redis Cache Options
 ```javascript
-const result = await autocannon({
-  url: API_BASE_URL,
-  connections: 10,    // Number of concurrent connections
-  pipelining: 1,      // HTTP pipelining factor
-  duration: 30,       // Test duration in seconds
-  requests: [...]     // Array of requests to cycle through
+const redisCacheStore = new RedisCacheStore({
+  clientOpts: {
+    host: 'localhost',
+    port: 6379
+  },
+  cacheTagsHeader: 'Cache-Tags',    // Enable cache tag support
+  tracking: true,                   // Enable client-side tracking
+  maxSize: 100 * 1024 * 1024,      // 100MB max cache size
+  maxCount: 10000                   // Max number of entries
 })
 ```
 
+### Benchmark Parameters
+```javascript
+const result = await autocannon({
+  url: PROXY_URL,
+  connections: 10,      // Concurrent connections
+  pipelining: 1,        // HTTP pipelining factor
+  duration: 30,         // Test duration in seconds
+  requests: [...]       // Request rotation
+})
+```
+
+## Troubleshooting
+
+1. **Port already in use**: The proxy servers use different ports (3001-3003) to avoid conflicts
+2. **Redis connection errors**: Ensure Redis is running on localhost:6379
+3. **Backend not responding**: Ensure the API server is running on localhost:3000
+4. **Low cache hit ratio**: The benchmarks warm up the cache before measuring
+
 ## CI/CD Integration
 
-The benchmarks can be run in CI environments by:
-1. Starting Redis as a service
-2. Starting the API server in background
-3. Running `npm run bench`
-4. Parsing results for performance regression detection
-
-Example GitHub Actions:
+Example GitHub Actions workflow:
 ```yaml
 services:
   redis:
@@ -121,9 +202,15 @@ services:
       - 6379:6379
 
 steps:
-  - name: Start API Server
+  - name: Install Dependencies
+    run: npm install
+    
+  - name: Start Backend API Server
     run: node example/server.js &
+    
+  - name: Wait for Backend
+    run: sleep 5
   
   - name: Run Benchmarks  
-    run: cd benchmarks && npm run bench
+    run: npm run bench
 ```

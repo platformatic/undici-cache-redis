@@ -18,10 +18,13 @@
     "example:docker:up": "cd example && docker-compose up -d",
     "example:docker:down": "cd example && docker-compose down",
     "example:run": "cd example && ./run-example.sh",
-    "bench": "cd benchmarks && npm install && npm run bench",
-    "bench:no-cache": "cd benchmarks && npm install && npm run bench:no-cache",
-    "bench:memory-cache": "cd benchmarks && npm install && npm run bench:memory-cache",
-    "bench:redis-cache": "cd benchmarks && npm install && npm run bench:redis-cache"
+    "bench": "node benchmarks/run-proxy-benchmarks.js",
+    "bench:proxy:no-cache": "node benchmarks/bench-proxy-no-cache.js",
+    "bench:proxy:memory-cache": "node benchmarks/bench-proxy-memory-cache.js",
+    "bench:proxy:redis-cache": "node benchmarks/bench-proxy-redis-cache.js",
+    "bench:server": "node example/server.js",
+    "bench:proxy": "node benchmarks/proxy-server.js",
+    "bench:run": "./run-benchmarks.sh"
   },
   "repository": {
     "type": "git",
@@ -41,7 +44,8 @@
   "homepage": "https://github.com/platformatic/undici-cache-redis#readme",
   "dependencies": {
     "iovalkey": "^0.3.3",
-    "lru_map": "^0.4.1"
+    "lru_map": "^0.4.1",
+    "atomic-sleep": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
@@ -51,8 +55,6 @@
     "typescript": "^5.9.2",
     "undici": "^7.13.0",
     "fastify": "^5.4.0",
-    "pino": "^9.7.0",
-    "pino-pretty": "^13.1.1",
     "autocannon": "^8.0.0"
   }
 }

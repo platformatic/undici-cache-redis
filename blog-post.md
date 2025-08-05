@@ -263,6 +263,7 @@ async function demo() {
   // Performance improvement
   const improvement = Math.round(req1.duration / req2.duration);
   console.log(`\n⚡ Performance: ${improvement}x faster with cache!`);
+  console.log(`Note: In production with proxy architectures, expect 10-15x improvement`);
 }
 
 demo().catch(console.error);
@@ -297,20 +298,28 @@ app.post('/webhook/product-updated', async (req, res) => {
 
 ## Performance: The Numbers Don't Lie
 
-We ran benchmarks comparing uncached requests, in-memory caching, and our Redis-backed solution:
+We ran benchmarks using a realistic proxy architecture to measure real-world performance:
 
-| Scenario | Latency (p95) | Requests/sec | Memory Usage |
-|----------|---------------|--------------|--------------|
-| No Cache | 510ms | 196 | 50MB |
-| In-Memory Cache | 15ms | 6,666 | 500MB+ |
-| Redis Cache (Cold) | 25ms | 4,000 | 75MB |
-| Redis Cache (Warm) | 2ms | 50,000 | 75MB |
+```
+┌────────────┐         ┌─────────────────┐         ┌──────────────┐
+│ Autocannon │ ──────> │ Server FOO      │ ──────> │ Server B     │
+│            │         │ (Proxy)         │         │ (Backend API)│
+└────────────┘         └─────────────────┘         └──────────────┘
+```
+
+This architecture simulates a common pattern where an application (Server FOO) uses Undici to make requests to upstream services (Server B). The results show the dramatic impact of caching:
+
+| Scenario | Latency (avg) | Latency (p95) | Requests/sec | Improvement |
+|----------|---------------|---------------|--------------|-------------|
+| No Cache | 358ms | 510ms | 27.8 | Baseline |
+| Memory Cache | 24ms | 45ms | 416.7 | **15x faster** |
+| Redis Cache | 31ms | 58ms | 322.6 | **11.6x faster** |
 
 ### Key Insights:
-- **25x faster** response times with warm cache
-- **255x more** requests per second
-- **Constant memory usage** regardless of cache size
-- **Shared cache** across all application instances
+- **10-15x performance improvement** with caching enabled
+- **93% reduction** in average latency
+- **Shared cache** across all proxy instances (Redis only)
+- **Constant memory usage** on proxy servers (Redis only)
 
 ## Advanced Features: Beyond Basic Caching
 
@@ -418,7 +427,7 @@ What started as an enterprise solution for our customers has proven too valuable
 By combining the performance of Undici, the reliability of Redis, and intelligent cache management, we've created a solution that's both enterprise-grade and accessible to every developer.
 
 The benefits are clear:
-- ⚡ **Performance**: 25-100x faster response times
+- ⚡ **Performance**: 10-15x faster response times
 - 💰 **Cost Savings**: Reduce API calls by 90%+
 - 🛠️ **Simplicity**: Enterprise caching with just `setGlobalDispatcher(agent)`
 - 🔄 **Scalability**: Shared cache across unlimited servers

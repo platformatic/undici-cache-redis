@@ -1,18 +1,9 @@
 'use strict'
 
 const fastify = require('fastify')
+const sleep = require('atomic-sleep')
 
-const app = fastify({
-  logger: {
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'yyyy-mm-dd HH:MM:ss'
-      }
-    }
-  }
-})
+const app = fastify()
 
 // Simulated database of products
 const products = {
@@ -23,10 +14,10 @@ const products = {
   5: { id: '5', name: 'Coffee Maker', price: 89.99, category: 'appliances', stock: 100 }
 }
 
-// Simulated API latency
-const simulateLatency = (min = 100, max = 500) => {
+// Simulated CPU-bound activity
+const simulateCpuWork = (min = 10, max = 30) => {
   const delay = Math.floor(Math.random() * (max - min + 1)) + min
-  return new Promise(resolve => setTimeout(resolve, delay))
+  sleep(delay)
 }
 
 // Hook to add cache tags based on endpoint
@@ -57,8 +48,7 @@ app.addHook('onRequest', async (request, reply) => {
 
 // GET all products
 app.get('/api/products', async (request, reply) => {
-  request.log.info({ path: request.url }, 'Fetching all products')
-  await simulateLatency(200, 600)
+  simulateCpuWork(200, 600)
 
   const productList = Object.values(products)
   reply.header('Cache-Control', 'public, max-age=300') // Cache for 5 minutes
@@ -72,8 +62,7 @@ app.get('/api/products', async (request, reply) => {
 // GET product by ID
 app.get('/api/products/:id', async (request, reply) => {
   const { id } = request.params
-  request.log.info({ path: request.url, id }, 'Fetching product by ID')
-  await simulateLatency(100, 300)
+  simulateCpuWork(100, 300)
 
   const product = products[id]
   if (!product) {
@@ -91,8 +80,7 @@ app.get('/api/products/:id', async (request, reply) => {
 // GET products by category
 app.get('/api/products/category/:category', async (request, reply) => {
   const { category } = request.params
-  request.log.info({ path: request.url, category }, 'Fetching products by category')
-  await simulateLatency(150, 400)
+  simulateCpuWork(150, 400)
 
   const categoryProducts = Object.values(products).filter(p => p.category === category)
 
@@ -108,8 +96,7 @@ app.get('/api/products/category/:category', async (request, reply) => {
 // GET personalized recommendations (changes frequently)
 app.get('/api/recommendations/:userId', async (request, reply) => {
   const { userId } = request.params
-  request.log.info({ path: request.url, userId }, 'Generating recommendations')
-  await simulateLatency(300, 800)
+  simulateCpuWork(300, 800)
 
   // Simulate personalized recommendations
   const allProducts = Object.values(products)
@@ -134,8 +121,7 @@ app.get('/api/recommendations/:userId', async (request, reply) => {
 
 // GET statistics (expensive operation)
 app.get('/api/stats', async (request, reply) => {
-  request.log.info({ path: request.url }, 'Calculating statistics')
-  await simulateLatency(500, 1000) // Expensive operation
+  simulateCpuWork(500, 1000) // Expensive operation
 
   const stats = {
     totalProducts: Object.keys(products).length,
@@ -157,8 +143,7 @@ app.put('/api/products/:id', async (request, reply) => {
   const { id } = request.params
   const updates = request.body
 
-  request.log.info({ path: request.url, id, updates }, 'Updating product')
-  await simulateLatency(100, 200)
+  simulateCpuWork(100, 200)
 
   if (!products[id]) {
     reply.code(404)
@@ -181,8 +166,6 @@ app.put('/api/products/:id', async (request, reply) => {
 app.post('/api/admin/invalidate-cache', async (request, reply) => {
   const { tags } = request.body
 
-  request.log.info({ tags }, 'Cache invalidation requested')
-
   return {
     message: 'Cache invalidation request received',
     tags,
@@ -199,18 +182,11 @@ const PORT = process.env.PORT || 3000
 
 const start = async () => {
   try {
+    console.log(`Starting backend server on port ${PORT}...`)
     await app.listen({ port: PORT, host: '0.0.0.0' })
-    app.log.info(`API Server running on http://localhost:${PORT}`)
-    app.log.info('Available endpoints:')
-    app.log.info('  GET  /api/products')
-    app.log.info('  GET  /api/products/:id')
-    app.log.info('  GET  /api/products/category/:category')
-    app.log.info('  GET  /api/recommendations/:userId')
-    app.log.info('  GET  /api/stats')
-    app.log.info('  PUT  /api/products/:id')
-    app.log.info('  POST /api/admin/invalidate-cache')
+    console.log(`Backend server listening on http://0.0.0.0:${PORT}`)
   } catch (err) {
-    app.log.error(err)
+    console.error('Backend server startup error:', err)
     process.exit(1)
   }
 }
