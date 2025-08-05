@@ -250,7 +250,7 @@ test('should notify when cache entry expires', async (t) => {
 
   const server = createServer((_, res) => {
     requestsToOrigin++
-    res.setHeader('cache-control', 'public, s-maxage=1')
+    res.setHeader('cache-control', 'public, s-maxage=1, stale-while-revalidate=1, stale-if-error=1')
     res.end('asd')
   }).listen(0)
 
