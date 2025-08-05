@@ -12,7 +12,7 @@ const app = fastify()
 
 let agent
 
-const createAgent = async () => {
+const createAgent = () => {
   switch (CACHE_TYPE) {
     case 'redis': {
       const redisCacheStore = new RedisCacheStore({
@@ -93,7 +93,7 @@ app.route({
 const start = async () => {
   try {
     console.log(`[${CACHE_TYPE.toUpperCase()}] Creating agent...`)
-    agent = await createAgent()
+    agent = createAgent()
     console.log(`[${CACHE_TYPE.toUpperCase()}] Starting proxy server on port ${PORT}...`)
     await app.listen({ port: PORT, host: '0.0.0.0' })
     console.log(`[${CACHE_TYPE.toUpperCase()}] Proxy server listening on http://0.0.0.0:${PORT}`)
