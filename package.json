@@ -18,13 +18,7 @@
     "example:docker:up": "cd example && docker-compose up -d",
     "example:docker:down": "cd example && docker-compose down",
     "example:run": "cd example && ./run-example.sh",
-    "bench": "node benchmarks/run-proxy-benchmarks.js",
-    "bench:proxy:no-cache": "node benchmarks/bench-proxy-no-cache.js",
-    "bench:proxy:memory-cache": "node benchmarks/bench-proxy-memory-cache.js",
-    "bench:proxy:redis-cache": "node benchmarks/bench-proxy-redis-cache.js",
-    "bench:server": "node example/server.js",
-    "bench:proxy": "node benchmarks/proxy-server.js",
-    "bench:run": "./run-benchmarks.sh"
+    "bench": "./benchmarks/run-benchmarks.sh"
   },
   "repository": {
     "type": "git",
