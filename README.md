@@ -575,7 +575,7 @@ npm run bench
 ```
 
 The benchmarks test a realistic proxy server architecture:
-- **Server FOO (Proxy)**: Uses Undici with different cache configurations  
+- **Server Foo (Proxy)**: Uses Undici with different cache configurations  
 - **Server Bar (Backend)**: API server with simulated latency
 - **Autocannon**: Load testing tool measuring performance
 

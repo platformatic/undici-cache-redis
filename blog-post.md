@@ -299,7 +299,7 @@ We ran benchmarks using a realistic proxy architecture to measure real-world per
 
 ```
 ┌────────────┐         ┌─────────────────┐         ┌──────────────┐
-│ Autocannon │ ──────> │ Server FOO      │ ──────> │ Server B     │
+│ Autocannon │ ──────> │ Server Foo      │ ──────> │ Server B     │
 │ (Load Test)│         │ (Your App +     │         │ (External    │
 │            │         │  Undici Cache)  │         │  API/Service)│
 └────────────┘         └─────────────────┘         └──────────────┘
@@ -307,7 +307,7 @@ We ran benchmarks using a realistic proxy architecture to measure real-world per
 
 **The Test Scenario:**
 - **Server Bar** (Backend API): Simulates a real external API with 1ms CPU-bound processing (using atomic-sleep to simulate database queries, third-party services, etc.)
-- **Server FOO** (Your Application): A Node.js proxy using Undici to make requests to Server Bar, with three configurations:
+- **Server Foo** (Your Application): A Node.js proxy using Undici to make requests to Server Bar, with three configurations:
   1. **No Cache**: Every request goes to the backend (baseline)
   2. **Memory Cache**: Uses Undici's built-in memory cache
   3. **Redis Cache**: Uses our Redis-backed cache store
