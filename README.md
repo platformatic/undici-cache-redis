@@ -26,7 +26,7 @@ npm install @platformatic/undici-cache-redis
 ### Basic Usage
 
 ```javascript
-const { Client, interceptors } = require('undici')
+const { Agent, interceptors } = require('undici')
 const { RedisCacheStore } = require('@platformatic/undici-cache-redis')
 
 // Create a Redis cache store
@@ -38,12 +38,13 @@ const store = new RedisCacheStore({
   }
 })
 
-// Create Undici client with caching
-const client = new Client('https://api.example.com')
+// Create Undici agent with caching
+const agent = new Agent()
   .compose(interceptors.cache({ store }))
 
 // Make requests - responses will be automatically cached
-const response = await client.request({
+const response = await agent.request({
+  origin: 'https://api.example.com',
   method: 'GET',
   path: '/users/123'
 })
@@ -54,24 +55,74 @@ console.log(await response.body.text())
 ### Cache Invalidation by Tags
 
 ```javascript
-const { Client, interceptors } = require('undici')
+const { Agent, interceptors } = require('undici')
 const { RedisCacheStore } = require('@platformatic/undici-cache-redis')
 
 const store = new RedisCacheStore({
   cacheTagsHeader: 'cache-tags' // Header to read cache tags from
 })
 
-const client = new Client('https://api.example.com')
+const agent = new Agent()
   .compose(interceptors.cache({ store }))
 
 // Server responds with: Cache-Tags: user:123,profile
-const response = await client.request({
+const response = await agent.request({
+  origin: 'https://api.example.com',
   method: 'GET',
   path: '/users/123'
 })
 
 // Later, invalidate all cached responses tagged with 'user:123'
 await store.deleteTags(['user:123'])
+```
+
+### Advanced Cache Management with RedisCacheManager
+
+```javascript
+const { RedisCacheStore, RedisCacheManager } = require('@platformatic/undici-cache-redis')
+
+// Create both store and manager
+const store = new RedisCacheStore({
+  cacheTagsHeader: 'cache-tags'
+})
+
+const manager = new RedisCacheManager({
+  clientOpts: { host: 'localhost', port: 6379 }
+})
+
+// Subscribe to cache events
+await manager.subscribe()
+
+manager.on('add-entry', (entry) => {
+  console.log('Cache entry added:', entry.path, entry.cacheTags)
+})
+
+manager.on('delete-entry', ({ id, keyPrefix }) => {
+  console.log('Cache entry deleted:', id)
+})
+
+// Analyze cache contents
+await manager.streamEntries((entry) => {
+  console.log(`Entry: ${entry.path}, Tags: [${entry.cacheTags.join(', ')}]`)
+}, '')
+
+// Invalidate by tags using the store
+await store.deleteTags(['user:123', 'products'])
+
+// Clean up specific entries by ID
+const entriesToDelete = []
+await manager.streamEntries((entry) => {
+  if (entry.path.startsWith('/api/products/')) {
+    entriesToDelete.push(entry.id)
+  }
+}, '')
+
+if (entriesToDelete.length > 0) {
+  await manager.deleteIds(entriesToDelete, '')
+}
+
+// Get response body for debugging
+const responseBody = await manager.getResponseById('some-entry-id', '')
 ```
 
 ### Cache Management
@@ -159,21 +210,49 @@ interface RedisCacheManagerOpts {
 
 ## Advanced Usage Examples
 
+### Using with fetch()
+
+```javascript
+const { Agent, interceptors, setGlobalDispatcher } = require('undici')
+const { RedisCacheStore } = require('@platformatic/undici-cache-redis')
+
+// Create a Redis cache store
+const store = new RedisCacheStore()
+
+// Create agent with caching
+const agent = new Agent()
+  .compose(interceptors.cache({ store }))
+
+// Set as global dispatcher to enable caching for fetch
+setGlobalDispatcher(agent)
+
+// Now fetch() automatically uses the cache!
+const response = await fetch('https://api.example.com/users/123')
+const data = await response.json()
+
+// Cache headers are available
+if (response.headers.get('x-cache') === 'HIT') {
+  console.log('Response was served from cache!')
+}
+```
+
 ### Working with Vary Headers
 
 ```javascript
 const store = new RedisCacheStore()
-const client = new Client('https://api.example.com')
+const agent = new Agent()
   .compose(interceptors.cache({ store }))
 
 // Different responses cached based on Accept-Language header
-const responseEn = await client.request({
+const responseEn = await agent.request({
+  origin: 'https://api.example.com',
   method: 'GET',
   path: '/content',
   headers: { 'Accept-Language': 'en' }
 })
 
-const responseFr = await client.request({
+const responseFr = await agent.request({
+  origin: 'https://api.example.com',
   method: 'GET',
   path: '/content',
   headers: { 'Accept-Language': 'fr' }

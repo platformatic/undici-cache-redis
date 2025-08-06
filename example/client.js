@@ -54,12 +54,10 @@ const tracker = new PerformanceTracker()
 async function createCachedAgent () {
   // Create Redis cache store with configuration
   const cacheStore = new RedisCacheStore({
-    redis: 'redis://localhost:6379',
-    ttl: 3600 * 1000, // Default TTL: 1 hour
-    tbd: 300 * 1000,  // Time before deletion: 5 minutes
+    clientOpts: { host: 'localhost', port: 6379 },
     cacheTagsHeader: 'Cache-Tags', // Header name for cache tags
     tracking: true, // Enable client-side tracking for performance
-    trackingCacheSize: 100, // LRU cache size
+    maxCount: 100, // LRU cache size
     errorCallback: (err) => {
       console.error('Redis cache error:', err.message)
     }
@@ -67,18 +65,15 @@ async function createCachedAgent () {
 
   // Create cache manager for administrative operations
   const cacheManager = new RedisCacheManager({
-    redis: 'redis://localhost:6379'
+    clientOpts: { host: 'localhost', port: 6379 }
   })
 
   // Create Undici agent with cache interceptor
-  const agent = new Agent({
-    interceptors: {
-      Agent: [interceptors.cache({
-        store: cacheStore,
-        methods: ['GET'] // Only cache GET requests
-      })]
-    }
-  })
+  const agent = new Agent()
+    .compose(interceptors.cache({
+      store: cacheStore,
+      methods: ['GET'] // Only cache GET requests
+    }))
 
   // Set as global dispatcher to work with fetch
   setGlobalDispatcher(agent)
@@ -199,13 +194,14 @@ async function demonstrateCaching () {
 
     console.info('\n--- Phase 3: Cache invalidation by tags ---')
 
-    // Get current cache stats
-    const statsBeforeInvalidation = await cacheManager.getStats()
-    console.info({ stats: statsBeforeInvalidation }, 'Cache stats before invalidation')
+    // Count current cache entries
+    let entryCount = 0
+    await cacheManager.streamEntries(() => entryCount++, '')
+    console.info({ totalEntries: entryCount }, 'Cache entries before invalidation')
 
-    // Invalidate all product-related caches
-    const invalidated = await cacheManager.invalidateByTags(['products'])
-    console.info({ count: invalidated }, 'Invalidated entries by tag "products"')
+    // Invalidate all product-related caches using the store
+    await cacheStore.deleteTags(['products'])
+    console.info('Invalidated entries by tag "products"')
 
     // Make request again - should be cache miss after invalidation
     console.info('\nRequests after cache invalidation using agent:')
@@ -229,8 +225,14 @@ async function demonstrateCaching () {
 
     console.info('\n--- Phase 5: Performance comparison ---')
 
-    // Clear all cache for fair comparison
-    await cacheManager.clear()
+    // Clear all cache for fair comparison by deleting all entries
+    const entriesToDelete = []
+    await cacheManager.streamEntries((entry) => {
+      entriesToDelete.push(entry.id)
+    }, '')
+    if (entriesToDelete.length > 0) {
+      await cacheManager.deleteIds(entriesToDelete, '')
+    }
     tracker.requests = [] // Reset tracker
 
     // Make 10 requests without cache benefit using agent
@@ -268,19 +270,21 @@ async function demonstrateCaching () {
     }, 'Performance improvement with caching')
 
     // Get final cache statistics
-    const finalCacheStats = await cacheManager.getStats()
-    console.info({ stats: finalCacheStats }, 'Final cache statistics')
-
-    // List some cached entries
-    const entries = await cacheManager.list({ limit: 5 })
-    console.info({
-      entries: entries.map(e => ({
-        key: e.key,
-        size: e.size,
-        tags: e.metadata?.tags,
-        ttl: e.ttl
-      }))
-    }, 'Sample cache entries')
+    let finalEntryCount = 0
+    const sampleEntries = []
+    await cacheManager.streamEntries((entry) => {
+      finalEntryCount++
+      if (sampleEntries.length < 5) {
+        sampleEntries.push({
+          id: entry.id,
+          path: entry.path,
+          tags: entry.cacheTags,
+          statusCode: entry.statusCode
+        })
+      }
+    }, '')
+    console.info({ totalEntries: finalEntryCount }, 'Final cache statistics')
+    console.info({ entries: sampleEntries }, 'Sample cache entries')
   } catch (error) {
     console.error({ error: error.message }, 'Demonstration failed')
   } finally {

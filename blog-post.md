@@ -65,20 +65,19 @@ Initially, we developed `@platformatic/undici-cache-redis` for our enterprise cu
 const { Agent, interceptors, setGlobalDispatcher } = require('undici');
 const { RedisCacheStore } = require('@platformatic/undici-cache-redis');
 
-// Create an agent with Redis caching
-const agent = new Agent({
-  interceptors: {
-    Agent: [interceptors.cache({ 
-      store: new RedisCacheStore() 
-    })]
-  }
-});
+// Create a Redis cache store
+const store = new RedisCacheStore();
+
+// Create an agent with caching interceptor
+const agent = new Agent()
+  .compose(interceptors.cache({ store }));
 
 // Set as global dispatcher to work with fetch
 setGlobalDispatcher(agent);
 
 // Now use fetch() normally - it's automatically cached!
 const response = await fetch('https://api.example.com/users/123');
+const data = await response.json();
 
 // Or use agent.request() directly
 const response2 = await agent.request({
@@ -86,6 +85,7 @@ const response2 = await agent.request({
   origin: 'https://api.example.com',
   path: '/users/123'
 });
+const data2 = await response2.body.json();
 ```
 
 ### What Just Happened?
@@ -128,7 +128,7 @@ graph TB
 ### The Magic: Dual-Layer Caching
 1. **Local TrackingCache**: Lightning-fast in-memory cache for hot data
 2. **Redis Backend**: Shared persistent cache across all servers
-3. **Agent-Side Tracking**: Redis notifies when cached data changes
+3. **Client-Side Tracking**: Redis notifies when cached data changes
 4. **Smart Invalidation**: Automatic cleanup based on HTTP semantics
 
 ## Step-by-Step: From Zero to Cached in 5 Minutes
@@ -205,11 +205,8 @@ const store = new RedisCacheStore({
 });
 
 // Create the cached agent
-const agent = new Agent({
-  interceptors: {
-    Agent: [interceptors.cache({ store })]
-  }
-});
+const agent = new Agent()
+  .compose(interceptors.cache({ store }));
 
 // Set as global dispatcher for fetch
 setGlobalDispatcher(agent);
@@ -352,10 +349,10 @@ GET /api/data
 Accept-Language: fr
 ```
 
-### 3. Agent-Side Tracking: Minimize Redis Calls
+### 3. Client-Side Tracking: Minimize Redis Calls
 ```javascript
 const store = new RedisCacheStore({
-  tracking: true, // Enable Redis agent-side caching
+  tracking: true, // Enable Redis client-side caching
   maxSize: 100 * 1024 * 1024, // 100MB local cache
 });
 ```

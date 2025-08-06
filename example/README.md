@@ -30,8 +30,7 @@ This example demonstrates a production-ready implementation of `@platformatic/un
 ## Prerequisites
 
 - Node.js >= 18.0.0
-- Docker and Docker Compose
-- Redis/Valkey (provided via Docker Compose)
+- Redis/Valkey running locally (default port 6379)
 
 ## Setup
 
@@ -40,10 +39,13 @@ This example demonstrates a production-ready implementation of `@platformatic/un
 npm install
 ```
 
-2. Start Redis/Valkey:
+2. Ensure Redis/Valkey is running:
 ```bash
-cd example
-docker-compose up -d
+# If you have Redis/Valkey installed locally:
+redis-server
+
+# Or using the project's Docker setup from root directory:
+npm run valkey
 ```
 
 3. Start the API server:
@@ -54,6 +56,37 @@ node server.js
 4. In another terminal, run the client demonstration:
 ```bash
 node client.js
+```
+
+## Available Examples
+
+### Basic Example (`client.js`)
+Demonstrates basic caching functionality with performance tracking:
+- Cache hits and misses
+- Tag-based invalidation 
+- Performance comparison
+- Works with both `agent.request()` and `fetch()`
+
+### Advanced Example (`advanced-client.js`)
+Shows advanced caching patterns:
+- Cache stampede protection
+- Conditional caching logic
+- Cache warming strategies
+- Analytics and monitoring
+
+### Cache Manager Example (`cache-manager-example.js`)
+Focuses on advanced cache management with `RedisCacheManager`:
+- Real-time cache event monitoring
+- Cache analysis and reporting
+- Selective cache invalidation by tags
+- Cache entry inspection and debugging
+- Programmatic cache cleanup patterns
+
+Run any example:
+```bash
+node client.js
+node advanced-client.js
+node cache-manager-example.js
 ```
 
 ## What the Example Shows
@@ -131,8 +164,8 @@ You can extend this example by:
 
 If you encounter issues:
 
-1. Ensure Redis is running: `docker-compose ps`
-2. Check Redis connectivity: `docker exec cache-redis-example valkey-cli ping`
+1. Ensure Redis is running: `redis-cli ping` (should return PONG)
+2. Check Redis connectivity: `redis-cli -h localhost -p 6379 ping`
 3. Verify server is running on port 3000
 4. Check logs for error messages
 5. Ensure you're using Node.js >= 18.0.0

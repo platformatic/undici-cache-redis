@@ -1,6 +1,6 @@
 'use strict'
 
-const { Agent, Client, interceptors, setGlobalDispatcher } = require('undici')
+const { Agent, interceptors, setGlobalDispatcher } = require('undici')
 const { RedisCacheStore, RedisCacheManager } = require('../index.js')
 const { promisify } = require('util')
 
@@ -10,24 +10,15 @@ const API_BASE_URL = 'http://localhost:3000'
 // Advanced cache store with custom configuration
 async function createAdvancedCacheStore () {
   const cacheStore = new RedisCacheStore({
-    redis: 'redis://localhost:6379',
-    ttl: 3600 * 1000, // 1 hour
-    tbd: 300 * 1000,  // 5 minutes stale time
+    clientOpts: { host: 'localhost', port: 6379 },
     cacheTagsHeader: 'Cache-Tags',
     tracking: true,
-    trackingCacheSize: 1000, // Larger tracking cache
+    maxCount: 1000, // Larger tracking cache
 
     // Custom error handling with retry logic
     errorCallback: (err) => {
       console.error({ error: err.message, code: err.code }, 'Redis error')
       // Could implement circuit breaker pattern here
-    },
-
-    // Custom key generation for more control
-    keyGenerator: (request) => {
-      const { origin, path, method } = request
-      // Could add user ID, API version, etc.
-      return `${method}:${origin}${path}`.toLowerCase()
     }
   })
 
@@ -38,11 +29,8 @@ async function createAdvancedCacheStore () {
 async function createAdvancedAgent () {
   const cacheStore = await createAdvancedCacheStore()
 
-  const agent = new Agent({
-    interceptors: {
-      Agent: [interceptors.cache({ store: cacheStore, methods: ['GET'] })]
-    }
-  })
+  const agent = new Agent()
+    .compose(interceptors.cache({ store: cacheStore, methods: ['GET'] }))
 
   // Set as global dispatcher for fetch
   setGlobalDispatcher(agent)
@@ -56,11 +44,17 @@ async function demonstrateCacheStampede () {
 
   const { agent: sharedAgent, cacheStore } = await createAdvancedAgent()
   const cacheManager = new RedisCacheManager({
-    redis: 'redis://localhost:6379'
+    clientOpts: { host: 'localhost', port: 6379 }
   })
 
   // Clear cache to start fresh
-  await cacheManager.clear()
+  const entriesToClear = []
+  await cacheManager.streamEntries((entry) => {
+    entriesToClear.push(entry.id)
+  }, '')
+  if (entriesToClear.length > 0) {
+    await cacheManager.deleteIds(entriesToClear, '')
+  }
 
   console.info('Simulating 5 concurrent fetch requests for the same expensive resource...')
 
@@ -103,37 +97,18 @@ async function demonstrateConditionalCaching () {
   console.info('\n=== Conditional Caching Demo ===\n')
 
   const cacheStore = new RedisCacheStore({
-    redis: 'redis://localhost:6379',
-    ttl: 3600 * 1000,
-
-    // Custom cache decision logic
-    shouldCache: (request, response) => {
-      // Don't cache errors
-      if (response.statusCode >= 400) return false
-
-      // Don't cache if response has no-store directive
-      const cacheControl = response.headers['cache-control']
-      if (cacheControl && cacheControl.includes('no-store')) return false
-
-      // Don't cache personalized content
-      if (response.headers['x-personalized'] === 'true') return false
-
-      // Cache everything else
-      return true
-    }
+    clientOpts: { host: 'localhost', port: 6379 }
   })
 
-  const client = new Client(API_BASE_URL, {
-    interceptors: {
-      Client: [interceptors.cache({ store: cacheStore, methods: ['GET'] })]
-    }
-  })
+  const agent = new Agent()
+    .compose(interceptors.cache({ store: cacheStore, methods: ['GET'] }))
 
   // Test different scenarios
   console.info('Testing conditional caching scenarios...')
 
   // 1. Normal cacheable request
-  const res1 = await client.request({
+  const res1 = await agent.request({
+    origin: API_BASE_URL,
     method: 'GET',
     path: '/api/products/1'
   })
@@ -142,7 +117,8 @@ async function demonstrateConditionalCaching () {
 
   // 2. Error response (404)
   try {
-    const res2 = await client.request({
+    const res2 = await agent.request({
+      origin: API_BASE_URL,
       method: 'GET',
       path: '/api/products/999'
     })
@@ -153,7 +129,8 @@ async function demonstrateConditionalCaching () {
   console.info('Request 2: 404 error - should NOT be cached')
 
   // 3. Personalized content
-  const res3 = await client.request({
+  const res3 = await agent.request({
+    origin: API_BASE_URL,
     method: 'GET',
     path: '/api/recommendations/user123'
   })
@@ -161,12 +138,13 @@ async function demonstrateConditionalCaching () {
   console.info('Request 3: Personalized recommendations - caching based on headers')
 
   // Check what was actually cached
-  const cacheManager = new RedisCacheManager({ redis: 'redis://localhost:6379' })
-  const stats = await cacheManager.getStats()
-  console.info({ cachedEntries: stats.entries }, 'Cache statistics after conditional caching')
+  const cacheManager = new RedisCacheManager({ clientOpts: { host: 'localhost', port: 6379 } })
+  let entryCount = 0
+  await cacheManager.streamEntries(() => entryCount++, '')
+  console.info({ cachedEntries: entryCount }, 'Cache statistics after conditional caching')
 
   // Cleanup
-  await client.close()
+  await agent.close()
   await cacheStore.close()
   await cacheManager.close()
 }
@@ -176,11 +154,8 @@ async function demonstrateCacheWarming () {
   console.info('\n=== Cache Warming Demo ===\n')
 
   const cacheStore = await createAdvancedCacheStore()
-  const client = new Client(API_BASE_URL, {
-    interceptors: {
-      Client: [interceptors.cache({ store: cacheStore, methods: ['GET'] })]
-    }
-  })
+  const agent = new Agent()
+    .compose(interceptors.cache({ store: cacheStore, methods: ['GET'] }))
 
   // URLs to warm up
   const urlsToWarm = [
@@ -197,7 +172,7 @@ async function demonstrateCacheWarming () {
   const warmupStart = Date.now()
   const warmupPromises = urlsToWarm.map(async (path) => {
     const start = Date.now()
-    const response = await client.request({ method: 'GET', path })
+    const response = await agent.request({ origin: API_BASE_URL, method: 'GET', path })
     await response.body.json()
     return {
       path,
@@ -220,7 +195,7 @@ async function demonstrateCacheWarming () {
   const cachedStart = Date.now()
   for (const path of urlsToWarm) {
     const start = Date.now()
-    const response = await client.request({ method: 'GET', path })
+    const response = await agent.request({ origin: API_BASE_URL, method: 'GET', path })
     await response.body.json()
     console.info({
       path,
@@ -236,7 +211,7 @@ async function demonstrateCacheWarming () {
   }, 'Cache warming performance summary')
 
   // Cleanup
-  await client.close()
+  await agent.close()
   await cacheStore.close()
 }
 
@@ -245,57 +220,45 @@ async function demonstrateCacheAnalytics () {
   console.info('\n=== Cache Analytics Demo ===\n')
 
   const cacheManager = new RedisCacheManager({
-    redis: 'redis://localhost:6379'
+    clientOpts: { host: 'localhost', port: 6379 }
   })
 
   // Get detailed cache statistics
-  const stats = await cacheManager.getStats()
-  console.info({
-    totalEntries: stats.entries,
-    totalSize: stats.size,
-    avgEntrySize: stats.entries > 0 ? Math.round(stats.size / stats.entries) : 0
-  }, 'Cache overview')
-
-  // Analyze cache entries by tag
+  let totalEntries = 0
   const tagAnalysis = {}
-  const entries = await cacheManager.list({ limit: 100 })
+  const entries = []
 
-  for (const entry of entries) {
-    const tags = entry.metadata?.tags || []
-    for (const tag of tags) {
+  await cacheManager.streamEntries((entry) => {
+    totalEntries++
+    entries.push(entry)
+    for (const tag of entry.cacheTags) {
       tagAnalysis[tag] = (tagAnalysis[tag] || 0) + 1
     }
-  }
+  }, '')
+
+  console.info({
+    totalEntries,
+    avgTagsPerEntry: totalEntries > 0 ? Object.values(tagAnalysis).reduce((a, b) => a + b, 0) / totalEntries : 0
+  }, 'Cache overview')
 
   console.info({ tagDistribution: tagAnalysis }, 'Cache entries by tag')
 
-  // Find large cache entries
-  const largeEntries = entries
-    .filter(e => e.size > 10000)
-    .sort((a, b) => b.size - a.size)
-    .slice(0, 5)
-    .map(e => ({
-      key: e.key,
-      size: e.size,
-      tags: e.metadata?.tags,
-      age: Date.now() - new Date(e.metadata?.cachedAt).getTime()
-    }))
+  // Sample some cache entries for analysis
+  const sampleEntries = []
+  await cacheManager.streamEntries((entry) => {
+    if (sampleEntries.length < 10) {
+      sampleEntries.push({
+        id: entry.id,
+        path: entry.path,
+        tags: entry.cacheTags,
+        statusCode: entry.statusCode,
+        age: Date.now() - entry.cachedAt
+      })
+    }
+  }, '')
 
-  if (largeEntries.length > 0) {
-    console.info({ entries: largeEntries }, 'Largest cache entries')
-  }
-
-  // Find soon-to-expire entries
-  const expiringEntries = entries
-    .filter(e => e.ttl > 0 && e.ttl < 60000) // Expiring in next minute
-    .map(e => ({
-      key: e.key,
-      ttl: Math.round(e.ttl / 1000) + 's',
-      tags: e.metadata?.tags
-    }))
-
-  if (expiringEntries.length > 0) {
-    console.info({ entries: expiringEntries }, 'Entries expiring soon')
+  if (sampleEntries.length > 0) {
+    console.info({ entries: sampleEntries }, 'Sample cache entries')
   }
 
   await cacheManager.close()
