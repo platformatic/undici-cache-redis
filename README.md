@@ -497,7 +497,7 @@ npm run bench
 
 The benchmarks test a realistic proxy server architecture:
 - **Server FOO (Proxy)**: Uses Undici with different cache configurations  
-- **Server B (Backend)**: API server with simulated latency
+- **Server Bar (Backend)**: API server with simulated latency
 - **Autocannon**: Load testing tool measuring performance
 
 Expected results show **10-15x performance improvement** with caching enabled.
