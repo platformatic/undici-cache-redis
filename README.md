@@ -503,7 +503,6 @@ The benchmarks test a realistic proxy server architecture:
 Expected results show **10-15x performance improvement** with caching enabled.
 
 For detailed benchmarking instructions, see [benchmarks/README.md](./benchmarks/README.md).
-
 ## Contributing
 
 This project is part of the Platformatic ecosystem. For contributing guidelines, please refer to the main [Platformatic repository](https://github.com/platformatic/platformatic).
