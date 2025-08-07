@@ -38,6 +38,31 @@ npm run valkey
 npm run test:typescript
 ```
 
+### Benchmarking
+```bash
+# Run the complete benchmark suite
+npm run bench
+```
+
+The benchmark script automatically:
+- Checks prerequisites (Node.js, dependencies, Redis/Valkey connection)
+- Starts Redis/Valkey if needed: `npm run valkey`
+- Starts the backend server if not already running
+- Runs all three benchmark scenarios (No Cache, Memory Cache, Redis Cache)
+- Provides comprehensive performance comparison and analysis
+- Cleans up all processes when finished
+
+**Manual benchmarking** (for debugging):
+```bash
+# Start backend server manually
+node example/server.js
+
+# Run individual benchmark scenarios
+node benchmarks/bench-proxy-no-cache.js      # No caching baseline
+node benchmarks/bench-proxy-memory-cache.js  # In-memory caching  
+node benchmarks/bench-proxy-redis-cache.js   # Redis/Valkey caching
+```
+
 ### Code Quality
 ```bash
 # Run ESLint

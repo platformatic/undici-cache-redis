@@ -1,0 +1,15 @@
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Docker volumes
+redis-data/
+
+# OS files
+.DS_Store
+Thumbs.db

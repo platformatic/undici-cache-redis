@@ -11,7 +11,14 @@
     "lint:fix": "eslint --fix",
     "valkey": "docker compose up -d",
     "test": "node --test --test-concurrency=1 ./test/*.test.js",
-    "test:typescript": "tsd --files test/ && tsc ./index.d.ts --noEmit"
+    "test:typescript": "tsd --files test/ && tsc ./index.d.ts --noEmit",
+    "example:server": "node example/server.js",
+    "example:client": "node example/client.js",
+    "example:advanced": "node example/advanced-client.js",
+    "example:docker:up": "cd example && docker-compose up -d",
+    "example:docker:down": "cd example && docker-compose down",
+    "example:run": "cd example && ./run-example.sh",
+    "bench": "./benchmarks/run-benchmarks.sh"
   },
   "repository": {
     "type": "git",
@@ -30,16 +37,18 @@
   },
   "homepage": "https://github.com/platformatic/undici-cache-redis#readme",
   "dependencies": {
-    "iovalkey": "^0.1.0",
-    "lru_map": "^0.4.1"
+    "iovalkey": "^0.3.3",
+    "lru_map": "^0.4.1",
+    "atomic-sleep": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
-    "eslint": "^9.13.0",
-    "neostandard": "^0.11.7",
-    "snazzy": "^9.0.0",
-    "tsd": "^0.31.2",
-    "typescript": "^5.6.2",
-    "undici": "^7.1.0"
+    "eslint": "^9.32.0",
+    "neostandard": "^0.12.0",
+    "tsd": "^0.32.0",
+    "typescript": "^5.9.2",
+    "undici": "^7.13.0",
+    "fastify": "^5.4.0",
+    "autocannon": "^8.0.0"
   }
 }
