@@ -1,6 +1,6 @@
 # Undici Redis Cache Example
 
-This example demonstrates a production-ready implementation of `@platformatic/undici-cache-redis`, showcasing HTTP response caching with Redis/Valkey backend.
+This example demonstrates a production-ready implementation of `undici-cache-redis`, showcasing HTTP response caching with Redis/Valkey backend.
 
 ## Features Demonstrated
 

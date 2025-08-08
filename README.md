@@ -1,4 +1,4 @@
-# @platformatic/undici-cache-redis
+# undici-cache-redis
 
 A high-performance Redis-backed cache store for [Undici's](https://github.com/nodejs/undici) cache interceptor. This library provides seamless HTTP response caching with Redis/Valkey as the storage backend, featuring client-side caching, cache invalidation by tags, and support for managed Redis environments.
 
@@ -18,7 +18,7 @@ Built on top of [iovalkey](https://github.com/valkey-io/iovalkey) for optimal Re
 ## Installation
 
 ```bash
-npm install @platformatic/undici-cache-redis
+npm install undici-cache-redis
 ```
 
 ## Quick Start
@@ -27,7 +27,7 @@ npm install @platformatic/undici-cache-redis
 
 ```javascript
 const { Agent, interceptors } = require('undici')
-const { RedisCacheStore } = require('@platformatic/undici-cache-redis')
+const { RedisCacheStore } = require('undici-cache-redis')
 
 // Create a Redis cache store
 const store = new RedisCacheStore({
@@ -56,7 +56,7 @@ console.log(await response.body.text())
 
 ```javascript
 const { Agent, interceptors } = require('undici')
-const { RedisCacheStore } = require('@platformatic/undici-cache-redis')
+const { RedisCacheStore } = require('undici-cache-redis')
 
 const store = new RedisCacheStore({
   cacheTagsHeader: 'cache-tags' // Header to read cache tags from
@@ -79,7 +79,7 @@ await store.deleteTags(['user:123'])
 ### Advanced Cache Management with RedisCacheManager
 
 ```javascript
-const { RedisCacheStore, RedisCacheManager } = require('@platformatic/undici-cache-redis')
+const { RedisCacheStore, RedisCacheManager } = require('undici-cache-redis')
 
 // Create both store and manager
 const store = new RedisCacheStore({
@@ -128,7 +128,7 @@ const responseBody = await manager.getResponseById('some-entry-id', '')
 ### Cache Management
 
 ```javascript
-const { RedisCacheManager } = require('@platformatic/undici-cache-redis')
+const { RedisCacheManager } = require('undici-cache-redis')
 
 const manager = new RedisCacheManager({
   clientOpts: {
@@ -214,7 +214,7 @@ interface RedisCacheManagerOpts {
 
 ```javascript
 const { Agent, interceptors, setGlobalDispatcher } = require('undici')
-const { RedisCacheStore } = require('@platformatic/undici-cache-redis')
+const { RedisCacheStore } = require('undici-cache-redis')
 
 // Create a Redis cache store
 const store = new RedisCacheStore()

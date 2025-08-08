@@ -1,6 +1,6 @@
 # Performance Benchmarks
 
-This directory contains performance benchmarks for `@platformatic/undici-cache-redis` using [autocannon](https://github.com/mcollina/autocannon).
+This directory contains performance benchmarks for `undici-cache-redis` using [autocannon](https://github.com/mcollina/autocannon).
 
 ## Architecture
 

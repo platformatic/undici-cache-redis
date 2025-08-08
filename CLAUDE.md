@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is `@platformatic/undici-cache-redis`, a Redis-backed cache store for Undici's cache interceptor. It provides a cache implementation that integrates with Undici's HTTP client to cache responses in Redis/Valkey, offering both in-memory tracking and persistent storage.
+This is `undici-cache-redis`, a Redis-backed cache store for Undici's cache interceptor. It provides a cache implementation that integrates with Undici's HTTP client to cache responses in Redis/Valkey, offering both in-memory tracking and persistent storage.
 
 ### Core Architecture
 

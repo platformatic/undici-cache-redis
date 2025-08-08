@@ -1,5 +1,5 @@
 {
-  "name": "@platformatic/undici-cache-redis",
+  "name": "undici-cache-redis",
   "version": "0.7.1",
   "description": "An Undici cache store with a Redis backend.",
   "main": "index.js",
