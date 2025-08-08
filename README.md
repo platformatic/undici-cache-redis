@@ -26,8 +26,8 @@ npm install undici-cache-redis
 ### Basic Usage
 
 ```javascript
-const { Agent, interceptors } = require('undici')
-const { RedisCacheStore } = require('undici-cache-redis')
+import { Agent, interceptors } from 'undici'
+import { RedisCacheStore } from 'undici-cache-redis'
 
 // Create a Redis cache store
 const store = new RedisCacheStore({
@@ -55,8 +55,8 @@ console.log(await response.body.text())
 ### Cache Invalidation by Tags
 
 ```javascript
-const { Agent, interceptors } = require('undici')
-const { RedisCacheStore } = require('undici-cache-redis')
+import { Agent, interceptors } from 'undici'
+import { RedisCacheStore } from 'undici-cache-redis'
 
 const store = new RedisCacheStore({
   cacheTagsHeader: 'cache-tags' // Header to read cache tags from
@@ -79,7 +79,7 @@ await store.deleteTags(['user:123'])
 ### Advanced Cache Management with RedisCacheManager
 
 ```javascript
-const { RedisCacheStore, RedisCacheManager } = require('undici-cache-redis')
+import { RedisCacheStore, RedisCacheManager } from 'undici-cache-redis'
 
 // Create both store and manager
 const store = new RedisCacheStore({
@@ -128,7 +128,7 @@ const responseBody = await manager.getResponseById('some-entry-id', '')
 ### Cache Management
 
 ```javascript
-const { RedisCacheManager } = require('undici-cache-redis')
+import { RedisCacheManager } from 'undici-cache-redis'
 
 const manager = new RedisCacheManager({
   clientOpts: {
@@ -213,8 +213,8 @@ interface RedisCacheManagerOpts {
 ### Using with fetch()
 
 ```javascript
-const { Agent, interceptors, setGlobalDispatcher } = require('undici')
-const { RedisCacheStore } = require('undici-cache-redis')
+import { Agent, interceptors, setGlobalDispatcher } from 'undici'
+import { RedisCacheStore } from 'undici-cache-redis'
 
 // Create a Redis cache store
 const store = new RedisCacheStore()
