@@ -2,12 +2,12 @@ services:
   plain-valkey:
     ports:
       - "127.0.0.1:6379:6379"
-    image: "valkey/valkey:8.1"
+    image: "valkey/valkey:9.0"
 
   preconfigured-valkey:
     ports:
       - "127.0.0.1:6389:6379"
-    image: "valkey/valkey:8.1"
+    image: "valkey/valkey:9.0"
     volumes:
       - ${PWD}/test/__fixtures__/preconfigured-valkey.conf:/usr/local/etc/valkey/valkey.conf
     command:
@@ -17,7 +17,7 @@ services:
   misconfigured-valkey:
     ports:
       - "127.0.0.1:6399:6379"
-    image: "valkey/valkey:8.1"
+    image: "valkey/valkey:9.0"
     volumes:
       - ${PWD}/test/__fixtures__/misconfigured-valkey.conf:/usr/local/etc/valkey/valkey.conf
     command:
