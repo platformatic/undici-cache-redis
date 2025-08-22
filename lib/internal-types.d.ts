@@ -16,7 +16,7 @@ export interface DeleteByUri {
   path: string
 }
 
-export type GetResult = CachedResponse & { body: null | Readable | Iterable<Buffer> | Buffer | Iterable<string> | string }
+export type GetResult = CachedResponse & { body: undefined | Readable | Iterable<Buffer> | Buffer | Iterable<string> | string }
 
 /**
  * Underlying storage provider for cached responses
@@ -39,7 +39,7 @@ export interface CacheStore {
 export interface CachedResponse {
   statusCode: number;
   statusMessage: string;
-  headers?: Record<string, string | string[]>
+  headers: Record<string, string | string[]>
   /**
    * Headers defined by the Vary header and their respective values for
    *  later comparison
@@ -58,4 +58,5 @@ export interface CachedResponse {
    *  either the same as staleAt or the `max-stale` caching directive.
    */
   deleteAt: number
+  cacheControlDirectives: Record<string, string | string[]>
 }
