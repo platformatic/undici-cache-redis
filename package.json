@@ -1,6 +1,6 @@
 {
   "name": "undici-cache-redis",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An Undici cache store with a Redis backend.",
   "main": "index.js",
   "directories": {
