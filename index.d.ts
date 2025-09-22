@@ -1,4 +1,4 @@
-import { Writable } from "node:stream";
+import { EventEmitter, Writable } from "node:stream";
 import { RedisOptions } from "iovalkey";
 import { GetResult, CacheKey, CachedResponse } from "./lib/internal-types";
 
@@ -31,7 +31,7 @@ export interface RedisCacheManagerOpts {
   clientOpts?: RedisOptions
 }
 
-declare class RedisCacheStore {
+declare class RedisCacheStore extends EventEmitter {
   constructor(opts?: RedisCacheStoreOpts);
 
   get(key: CacheKey): Promise<GetResult | undefined>
