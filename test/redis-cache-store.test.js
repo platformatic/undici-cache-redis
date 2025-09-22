@@ -362,6 +362,61 @@ function cacheStoreTests (CacheStore) {
       }
       equal(await store.get(nonMatchingRequest), undefined)
     })
+
+    test('respects empty vary directives', async (t) => {
+      await cleanValkey()
+
+      const request = {
+        origin: 'localhost',
+        path: '/',
+        method: 'GET'
+      }
+
+      const requestValue = {
+        statusCode: 200,
+        statusMessage: '',
+        headers: { foo: 'bar' },
+        vary: {
+          'header-1': null
+        },
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      }
+      const requestBody = ['part1', 'part2']
+
+      /**
+       * @type {import('../lib/internal-types.d.ts').CacheStore}
+       */
+      const store = new CacheStore({
+        clientOpts: {
+          keyPrefix: `${crypto.randomUUID()}:`
+        },
+        errorCallback: (err) => {
+          fail(err)
+        }
+      })
+
+      t.after(async () => {
+        await store.close()
+      })
+
+      // Sanity check
+      equal(await store.get(request), undefined)
+
+      const writeStream = store.createWriteStream(request, requestValue)
+      notEqual(writeStream, undefined)
+      writeResponse(writeStream, requestBody)
+
+      await once(writeStream, 'close')
+
+      const readStream = await store.get(structuredClone(request))
+      notEqual(readStream, undefined)
+      deepStrictEqual(await readResponse(readStream), {
+        ...requestValue,
+        body: requestBody,
+      })
+    })
   })
 
   test('returns cached values', async (t) => {
