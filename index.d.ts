@@ -61,7 +61,7 @@ export interface CacheEntry {
   deleteAt: number;
 }
 
-declare class RedisCacheManager {
+declare class RedisCacheManager extends EventEmitter{
   constructor(opts?: RedisCacheManagerOpts);
 
   streamEntries(
