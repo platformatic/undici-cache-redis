@@ -7,11 +7,20 @@ const { RedisCacheStore } = require('../index.js')
 const BACKEND_URL = 'http://localhost:3000'
 const DEFAULT_REQUESTS = [
   { method: 'GET', path: '/api/products' },
-  { method: 'GET', path: '/api/products/1' },
-  { method: 'GET', path: '/api/products/2' },
   { method: 'GET', path: '/api/products/category/electronics' },
   { method: 'GET', path: '/api/stats' }
 ]
+
+const KEYS_TO_DELETE = [
+  { origin: BACKEND_URL, method: 'GET', path: '/api/products' },
+  { origin: BACKEND_URL, method: 'GET', path: '/api/products/category/electronics' },
+  { origin: BACKEND_URL, method: 'GET', path: '/api/stats' }
+]
+
+for (let i = 1; i <= 500; i++) {
+  DEFAULT_REQUESTS.push({ method: 'GET', path: `/api/products/${i}` })
+  KEYS_TO_DELETE.push({ origin: BACKEND_URL, method: 'GET', path: `/api/products/${i}` })
+}
 
 async function waitForServer (url, maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
@@ -37,13 +46,7 @@ async function clearRedisCache () {
       }
     })
 
-    await redisCacheStore.deleteKeys([
-      { origin: BACKEND_URL, method: 'GET', path: '/api/products' },
-      { origin: BACKEND_URL, method: 'GET', path: '/api/products/1' },
-      { origin: BACKEND_URL, method: 'GET', path: '/api/products/2' },
-      { origin: BACKEND_URL, method: 'GET', path: '/api/products/category/electronics' },
-      { origin: BACKEND_URL, method: 'GET', path: '/api/stats' }
-    ])
+    await redisCacheStore.deleteKeys(KEYS_TO_DELETE)
 
     await redisCacheStore.close()
   } catch (err) {

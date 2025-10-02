@@ -2,9 +2,9 @@
 
 const { runProxyBenchmark } = require('./benchmark-utils')
 
-async function benchmarkProxyRedisCache () {
+async function benchmarkProxyRedisOnlyCache () {
   const result = await runProxyBenchmark({
-    cacheType: 'redis',
+    cacheType: 'redis-only',
     proxyPort: 3003,
     scenarioName: 'Redis Cache',
     needsWarmup: true,
@@ -15,7 +15,7 @@ async function benchmarkProxyRedisCache () {
 }
 
 if (require.main === module) {
-  benchmarkProxyRedisCache().catch(console.error)
+  benchmarkProxyRedisOnlyCache().catch(console.error)
 }
 
-module.exports = benchmarkProxyRedisCache
+module.exports = benchmarkProxyRedisOnlyCache
