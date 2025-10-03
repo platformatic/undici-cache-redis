@@ -14,7 +14,7 @@ let agent
 
 const createAgent = () => {
   switch (CACHE_TYPE) {
-    case 'redis': {
+    case 'redis-tracking': {
       const redisCacheStore = new RedisCacheStore({
         clientOpts: {
           host: 'localhost',
@@ -22,8 +22,22 @@ const createAgent = () => {
         },
         cacheTagsHeader: 'Cache-Tags',
         tracking: true,
-        maxSize: 100 * 1024 * 1024, // 100MB
+        maxSize: 200 * 1024 * 1024, // 200MB
         maxCount: 10000
+      })
+      return new Agent().compose(interceptors.cache({
+        store: redisCacheStore,
+        methods: ['GET']
+      }))
+    }
+    case 'redis-only': {
+      const redisCacheStore = new RedisCacheStore({
+        clientOpts: {
+          host: 'localhost',
+          port: 6379
+        },
+        cacheTagsHeader: 'Cache-Tags',
+        tracking: false,
       })
       return new Agent().compose(interceptors.cache({
         store: redisCacheStore,

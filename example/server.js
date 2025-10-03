@@ -5,14 +5,24 @@ const sleep = require('atomic-sleep')
 
 const app = fastify()
 
-// Simulated database of products
-const products = {
-  1: { id: '1', name: 'Laptop Pro', price: 1299.99, category: 'electronics', stock: 50 },
-  2: { id: '2', name: 'Wireless Mouse', price: 29.99, category: 'electronics', stock: 200 },
-  3: { id: '3', name: 'Office Chair', price: 399.99, category: 'furniture', stock: 25 },
-  4: { id: '4', name: 'Standing Desk', price: 599.99, category: 'furniture', stock: 15 },
-  5: { id: '5', name: 'Coffee Maker', price: 89.99, category: 'appliances', stock: 100 }
-}
+const products = ((limit) => {
+  const products = []
+  for (let i = 0; i <= limit; i++) {
+    products.push({
+      id: String(i),
+      name: `Product ${i}`,
+      price: (Math.random() * 1000).toFixed(2),
+      category: ['electronics', 'furniture', 'appliances'][i % 3],
+      stock: Math.floor(Math.random() * 100),
+      description: `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus non libero ipsum. Maecenas ultricies mauris tortor, eget bibendum enim dignissim at. Pellentesque at nisi magna. Aliquam ut purus non ante imperdiet suscipit ornare vulputate risus. Fusce sodales pretium tellus, eget pulvinar nisl semper sed. Nulla pulvinar, dui vel vestibulum pulvinar, metus tortor ornare elit, vel aliquet tortor risus at elit. Cras eget est congue, ultrices lorem id, dapibus ex. Ut quis mattis nulla, vitae bibendum neque. Duis a posuere quam, a tempor libero.
+                    Ut leo velit, efficitur sagittis nisi eu, vehicula commodo arcu. Donec feugiat, neque ac pellentesque pretium, orci turpis feugiat dolor, pulvinar cursus turpis nisi nec ex. Sed tellus quam, vestibulum feugiat pharetra ut, venenatis eu augue. Nunc quis bibendum ligula. Aenean a neque lacinia, aliquet est et, sollicitudin ipsum. Cras laoreet gravida nisi eu mattis. Donec congue, ante quis accumsan feugiat, velit ligula vehicula enim, sit amet suscipit elit libero et mauris. Suspendisse euismod, orci id pellentesque molestie, lacus ante semper magna, vitae venenatis nunc nunc ac erat.
+                    Mauris urna arcu, consectetur eu cursus et, euismod vitae ante. Aliquam erat volutpat. Phasellus condimentum nulla nec lorem venenatis, non convallis dolor viverra. Donec malesuada semper dolor, ut luctus nulla tempor at. Nam a ligula non purus vestibulum blandit non in mi. Aenean porttitor tristique tellus, et viverra urna luctus ac. Morbi iaculis sagittis sodales. Nunc facilisis, leo vitae interdum tincidunt, elit turpis vehicula elit, sed maximus risus dui eu ipsum. Fusce non nulla ut ante eleifend volutpat non nec lectus. Nam vel lobortis dolor.
+                    Aenean mi diam, efficitur a arcu quis, placerat dictum neque. Nam dignissim convallis bibendum. Aliquam eget facilisis metus. Duis et quam leo. Donec ligula ipsum, varius sit amet justo at, rutrum euismod dolor. Nulla consectetur, mi vitae consectetur efficitur, orci diam iaculis ex, ac commodo ipsum quam nec augue. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Nullam neque lorem, tempor eget purus in, venenatis blandit nibh. Phasellus luctus elit at justo dictum, eget faucibus velit mattis. Nunc ex libero, malesuada non tincidunt convallis, imperdiet ac orci. Nulla auctor eros id orci consequat mollis. Cras dignissim, nisl eu blandit blandit, nibh lacus iaculis risus, vel consequat dui turpis non velit. Maecenas in vulputate orci, at commodo tellus.
+                    Sed quis euismod nisl, in varius turpis. Cras hendrerit elit velit, a dictum lacus pellentesque ac. Etiam diam libero, dapibus sit amet interdum a, efficitur et turpis. Nam nec elit fringilla, tincidunt justo condimentum, elementum augue. Ut ultricies eget justo nec dictum. Sed elementum, quam malesuada interdum consequat, massa velit condimentum libero, quis vehicula lacus odio quis lorem. Nulla in turpis semper, blandit justo at, auctor nulla. Morbi mi ipsum, sagittis euismod nisl eget, consectetur luctus nisi. Donec sed ex fermentum ex tempus volutpat. Vivamus nec dolor et nisi eleifend scelerisque.`
+    })
+  }
+  return products
+})(500)
 
 // Simulated CPU-bound activity
 const simulateCpuWork = () => {
@@ -43,6 +53,8 @@ app.addHook('onRequest', async (request, reply) => {
   if (tags.length > 0) {
     reply.header('Cache-Tags', tags.join(','))
   }
+
+  reply.header('Vary', 'x-some-header')
 })
 
 // GET all products
@@ -154,6 +166,7 @@ app.put('/api/products/:id', async (request, reply) => {
 
   // Return updated product with cache invalidation hint
   reply.header('X-Cache-Invalidate', `product:${id},products`)
+
   return {
     product: products[id],
     updated: true,

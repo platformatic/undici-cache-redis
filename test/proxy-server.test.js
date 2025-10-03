@@ -80,14 +80,14 @@ test('proxy server with memory cache adds cache headers', async (t) => {
   await waitForServer('http://localhost:3023') // Wait for proxy
 
   // First request should be a cache miss
-  const response1 = await fetch('http://localhost:3023/api/products')
+  const response1 = await fetch('http://localhost:3023/api/products/1')
   assert.strictEqual(response1.ok, true)
   assert.strictEqual(response1.headers.get('x-proxy-cache'), 'MISS')
 
   await sleep(1000) // Let cache settle
 
   // Second request should be a cache hit
-  const response2 = await fetch('http://localhost:3023/api/products')
+  const response2 = await fetch('http://localhost:3023/api/products/1')
   assert.strictEqual(response2.ok, true)
   assert.strictEqual(response2.headers.get('x-proxy-cache'), 'HIT')
   assert.ok(response2.headers.get('age')) // Age header indicates cached response
