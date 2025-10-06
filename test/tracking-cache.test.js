@@ -89,7 +89,59 @@ test('should delete values when reaching a size threshold', async () => {
   deepStrictEqual(cache.get(entries[4].key), entries[4].value)
 })
 
-function generateCacheEntry ({ id, origin, body }) {
+test('should respect unused vary directives', async (t) => {
+  const cache = new TrackingCache()
+
+  const entry1 = generateCacheEntry({
+    id: 'entry1',
+    origin: 'http://test.com',
+  })
+  cache.set(entry1.key, { vary: { 'Accept-Encoding': undefined } }, entry1.value)
+
+  strictEqual(cache.count, 1)
+
+  await t.test('should match with not relevant headers', () => {
+    deepStrictEqual(cache.get({ ...entry1.key, headers: { Cookie: 'foo=bar;' } }), entry1.value)
+  })
+
+  await t.test('should match with undefined headers', () => {
+    deepStrictEqual(cache.get({ ...entry1.key, headers: undefined }), entry1.value)
+  })
+
+  await t.test('should not match with a non-empty header', () => {
+    deepStrictEqual(cache.get({ ...entry1.key, headers: { 'Accept-Encoding': 'gzip' } }), undefined)
+  })
+})
+
+test('should respect vary directives', async (t) => {
+  const cache = new TrackingCache()
+
+  const entry1 = generateCacheEntry({
+    id: 'entry1',
+    origin: 'http://test.com',
+  })
+  cache.set(entry1.key, { vary: { 'Accept-Encoding': 'gzip' } }, entry1.value)
+
+  strictEqual(cache.count, 1)
+
+  await t.test('should not match with not relevant headers', () => {
+    deepStrictEqual(cache.get({ ...entry1.key, headers: { Cookie: 'foo=bar;' } }), undefined)
+  })
+
+  await t.test('should not match with undefined headers', () => {
+    deepStrictEqual(cache.get({ ...entry1.key, headers: undefined }), undefined)
+  })
+
+  await t.test('should not match with a wrong header value', () => {
+    deepStrictEqual(cache.get({ ...entry1.key, headers: { 'Accept-Encoding': 'deflate' } }), undefined)
+  })
+
+  await t.test('should match with the same header value', () => {
+    deepStrictEqual(cache.get({ ...entry1.key, headers: { 'Accept-Encoding': 'gzip' } }), entry1.value)
+  })
+})
+
+function generateCacheEntry ({ id, origin, body, metadata }) {
   id = id ?? Math.random().toString(36).slice(2)
   origin = origin ?? 'http://test.com'
   body = body ?? 'test-body'
