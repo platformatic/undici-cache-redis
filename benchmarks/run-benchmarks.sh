@@ -69,8 +69,8 @@ cleanup() {
     fi
     
     # Kill any remaining Node.js processes for our servers
-    pkill -f "example/server.js" 2>/dev/null || true
-    pkill -f "benchmarks/proxy-server.js" 2>/dev/null || true
+    pkill -f "example/server.ts" 2>/dev/null || true
+    pkill -f "benchmarks/proxy-server.ts" 2>/dev/null || true
     
     print_status "Cleanup completed"
 }
@@ -156,7 +156,7 @@ print_status "Running benchmarks..."
 echo ""
 
 # Run the main benchmark suite
-if node benchmarks/run-proxy-benchmarks.js; then
+if node benchmarks/run-proxy-benchmarks.ts; then
     print_success "Benchmarks completed successfully!"
 else
     print_error "Benchmarks failed!"
@@ -166,7 +166,7 @@ fi
 print_success "🎉 All benchmarks completed!"
 echo ""
 print_status "To run individual benchmarks manually:"
-print_status "  node benchmarks/bench-proxy-no-cache.js              # No cache baseline"
-print_status "  node benchmarks/bench-proxy-memory-cache.js          # Memory cache"
-print_status "  node benchmarks/bench-proxy-redis-cache-only.js      # Redis cache"
-print_status "  node benchmarks/bench-proxy-redis-cache-tracking.js  # Redis cache with tracking"
+print_status "  node benchmarks/bench-proxy-no-cache.ts              # No cache baseline"
+print_status "  node benchmarks/bench-proxy-memory-cache.ts          # Memory cache"
+print_status "  node benchmarks/bench-proxy-redis-cache-only.ts      # Redis cache"
+print_status "  node benchmarks/bench-proxy-redis-cache-tracking.ts  # Redis cache with tracking"

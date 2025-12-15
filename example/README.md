@@ -35,11 +35,13 @@ This example demonstrates a production-ready implementation of `undici-cache-red
 ## Setup
 
 1. Install dependencies from the root directory:
+
 ```bash
 npm install
 ```
 
 2. Ensure Redis/Valkey is running:
+
 ```bash
 # If you have Redis/Valkey installed locally:
 redis-server
@@ -49,33 +51,41 @@ npm run valkey
 ```
 
 3. Start the API server:
+
 ```bash
-node server.js
+node server.ts
 ```
 
 4. In another terminal, run the client demonstration:
+
 ```bash
-node client.js
+node client.ts
 ```
 
 ## Available Examples
 
-### Basic Example (`client.js`)
+### Basic Example (`client.ts`)
+
 Demonstrates basic caching functionality with performance tracking:
+
 - Cache hits and misses
-- Tag-based invalidation 
+- Tag-based invalidation
 - Performance comparison
 - Works with both `agent.request()` and `fetch()`
 
-### Advanced Example (`advanced-client.js`)
+### Advanced Example (`advanced-client.ts`)
+
 Shows advanced caching patterns:
+
 - Cache stampede protection
 - Conditional caching logic
 - Cache warming strategies
 - Analytics and monitoring
 
-### Cache Manager Example (`cache-manager-example.js`)
+### Cache Manager Example (`cache-manager-example.ts`)
+
 Focuses on advanced cache management with `RedisCacheManager`:
+
 - Real-time cache event monitoring
 - Cache analysis and reporting
 - Selective cache invalidation by tags
@@ -83,28 +93,35 @@ Focuses on advanced cache management with `RedisCacheManager`:
 - Programmatic cache cleanup patterns
 
 Run any example:
+
 ```bash
-node client.js
-node advanced-client.js
-node cache-manager-example.js
+node client.ts
+node advanced-client.ts
+node cache-manager-example.ts
 ```
 
 ## What the Example Shows
 
 ### 1. Initial Requests (Cache Misses)
+
 The client makes several API requests that are not yet cached. You'll see higher latencies as requests go to the origin server.
 
 ### 2. Cached Responses (Cache Hits)
+
 Subsequent identical requests are served from Redis cache, showing dramatic latency improvements (often 10-100x faster).
 
 ### 3. Cache Tag Invalidation
+
 Demonstrates bulk cache invalidation using tags. When invalidating the "products" tag, all product-related cache entries are removed.
 
 ### 4. Automatic Cache Updates
+
 Shows how updating a resource (PUT request) can trigger cache invalidation for related entries.
 
 ### 5. Performance Metrics
+
 The example tracks and displays:
+
 - Average response times for cached vs uncached requests
 - Cache hit rates
 - Total time saved through caching
@@ -129,12 +146,13 @@ The example demonstrates key configuration options:
 ```javascript
 const cacheStore = new RedisCacheStore({
   redis: 'redis://localhost:6379',
-  ttl: 3600 * 1000,           // Default TTL: 1 hour
-  tbd: 300 * 1000,            // Time before deletion: 5 minutes
+  ttl: 3600 * 1000, // Default TTL: 1 hour
+  tbd: 300 * 1000, // Time before deletion: 5 minutes
   cacheTagsHeader: 'Cache-Tags', // Header for cache tags
-  tracking: true,             // Enable client-side tracking
-  trackingCacheSize: 100,     // LRU cache size
-  errorCallback: (err) => {   // Custom error handling
+  tracking: true, // Enable client-side tracking
+  trackingCacheSize: 100, // LRU cache size
+  errorCallback: err => {
+    // Custom error handling
     logger.error(err)
   }
 })

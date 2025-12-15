@@ -1,133 +1,43 @@
-name: Tests
-
+---
+name: Run Tests
 on:
   push:
     branches:
       - main
+      - v1.x
   pull_request:
-
+  workflow_dispatch:
 jobs:
-  setup-node-modules:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Git Checkout
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm install
-
-  lint:
-    name: Linting
-    runs-on: ubuntu-latest
-    needs: setup-node-modules
-    steps:
-      - name: Git Checkout
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Run Linting
-        run: npm run lint
-
-  unit-tests:
-    name: Unit Tests (Node ${{ matrix.node-version }}, ${{ matrix.redis.name }})
-    runs-on: ubuntu-latest
-    needs: setup-node-modules
+  ci:
     strategy:
       matrix:
-        node-version: [20, 22, 24]
-        redis:
-          - name: "Redis 7.2"
-            image: "redis:7.2-alpine"
-          - name: "Redis 7.4"
-            image: "redis:7.4-alpine"
-          - name: "Valkey 8.0"
-            image: "valkey/valkey:8.0-alpine"
-          - name: "Valkey 8.1"
-            image: "valkey/valkey:8.1-alpine"
-    services:
-      redis:
-        image: ${{ matrix.redis.image }}
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping 2>/dev/null || valkey-cli ping 2>/dev/null || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        node-version: [22.x, 24.x]
+        image: [redis:7.2, redis:8.4, valkey/valkey:8.0, valkey/valkey:9.0]
+    name: 'Node.js ${{ matrix.node-version }} / Backend ${{ matrix.image }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Git Checkout
+      - name: Checkout
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-
-      - name: Setup Node
+      - name: Use supported Node.js Version
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Run Tests
-        run: npm run test
-
-  integration-tests:
-    name: Integration Tests (Advanced Redis Configurations)
-    runs-on: ubuntu-latest
-    needs: setup-node-modules
-    steps:
-      - name: Git Checkout
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - name: Restore cached dependencies
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306
         with:
-          node-version: 24
-          cache: 'npm'
-
-      # Using docker compose for advanced configurations (preconfigured, misconfigured)
-      - name: Start Valkey services with custom configurations
-        run: docker compose up -d
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Run Integration Tests
-        run: npm run test
-
-      - name: Shutdown Valkey services
-        run: docker compose down
-
-  type-tests:
-    name: Type Tests
-    runs-on: ubuntu-latest
-    needs: setup-node-modules
-    steps:
-      - name: Git Checkout
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+          path: ~/.pnpm-store
+          key: node-modules-${{ hashFiles('package.json') }}
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm install
-
+          version: latest
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Start Redis/Valkey (${{ matrix.image }}) Cluster
+        run: docker compose up -d --wait
+        env:
+          IMAGE: ${{ matrix.image }}
+          VARIANT: ${{ startsWith(matrix.image, 'redis') && 'redis' || 'valkey' }}
       - name: Run Tests
-        run: npm run test:typescript
+        run: 'pnpm run ci'

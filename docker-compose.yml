@@ -1,25 +1,29 @@
 services:
-  plain-valkey:
+  main:
+    image: &image '${IMAGE:-valkey/valkey:9.0}'
     ports:
-      - "127.0.0.1:6379:6379"
-    image: "valkey/valkey:9.0"
+      - '7001:6379'
+    healthcheck: &health_check # Health_check
+      test: ['CMD', '${VARIANT:-valkey}-cli', 'ping']
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
-  preconfigured-valkey:
+  preconfigured:
+    image: *image
     ports:
-      - "127.0.0.1:6389:6379"
-    image: "valkey/valkey:9.0"
+      - '7002:6379'
     volumes:
-      - ${PWD}/test/__fixtures__/preconfigured-valkey.conf:/usr/local/etc/valkey/valkey.conf
-    command:
-      - valkey-server
-      - /usr/local/etc/valkey/valkey.conf
+      - ${PWD}/test/fixtures/preconfigured.conf:/etc/backend.conf
+    command: ['${VARIANT:-valkey}-server', '/etc/backend.conf']
+    healthcheck: *health_check
 
-  misconfigured-valkey:
+  misconfigured:
+    image: *image
     ports:
-      - "127.0.0.1:6399:6379"
-    image: "valkey/valkey:9.0"
+      - '7003:6379'
     volumes:
-      - ${PWD}/test/__fixtures__/misconfigured-valkey.conf:/usr/local/etc/valkey/valkey.conf
-    command:
-      - valkey-server
-      - /usr/local/etc/valkey/valkey.conf
+      - ${PWD}/test/fixtures/misconfigured.conf:/etc/backend.conf
+    command: ['${VARIANT:-valkey}-server', '/etc/backend.conf']
+    healthcheck: *health_check
