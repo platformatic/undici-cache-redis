@@ -811,7 +811,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       await this.#primaryClient.client('TRACKING', 'ON', 'REDIRECT', clientId)
       await this.#subscriptionClient.subscribe('__redis__:invalidate')
 
-      /* c8 ignore next 6 */
+      /* c8 ignore next 7 */
     } catch (err) {
       await this.#closeClient(this.#subscriptionClient)
       this.#subscribed = false
@@ -1154,8 +1154,8 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       return
     }
 
-    if (['reconnecting', 'connecting', 'connect', 'ready'].includes(this.#primaryClient.status)) {
-      await this.#primaryClient.disconnect()
+    if (['reconnecting', 'connecting', 'connect', 'ready'].includes(client.status)) {
+      await client.disconnect()
     }
   }
 }
