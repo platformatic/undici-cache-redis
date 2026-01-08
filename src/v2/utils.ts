@@ -1,6 +1,6 @@
 import lruMap from 'lru_map'
 import type { CacheKey } from '../types.ts'
-import type { CacheIdentifier, Keys } from './types.ts'
+import type { CacheMetadata, Keys } from './types.ts'
 
 export class KeysStorage {
   #serializedKeys: lruMap.LRUMap<string, Keys>
@@ -34,7 +34,7 @@ export class KeysStorage {
       requests: `${prefix}requests|${key.origin}|${key.path}`,
       request: `${prefix}request|${key.origin}|${key.path}|${key.method}`,
       variants: `${prefix}variants|${key.origin}|${key.path}|${key.method}`,
-      metadata: `${prefix}metadata|${id}`,
+      value: `${prefix}value|${id}`,
       body: `${prefix}body|${id}`
     }
 
@@ -75,7 +75,7 @@ export function decodeBody (rawBody: string): Buffer[] {
   return rawBody.split(' ').map(chunk => Buffer.from(chunk, 'base64'))
 }
 
-export function varyMatches (entry: CacheIdentifier, headers: Record<string, string>) {
+export function varyMatches (entry: CacheMetadata, headers: Record<string, string>) {
   // No vary, it is a match
   if (entry.specificity === 0) {
     return { value: entry.id }

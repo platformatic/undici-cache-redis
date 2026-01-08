@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { AddedCacheEntry } from '../../src/v2/types.ts'
 import {
   createStore,
   createTags,
@@ -41,9 +41,9 @@ test('caches request successfully', async t => {
   const origin = `http://localhost:${(server.address() as AddressInfo).port}`
   const client = new Client(origin).compose(interceptors.cache({ store }))
 
-  const emittedEntries: CacheEntry[] = []
+  const emittedEntries: AddedCacheEntry[] = []
   store.on('entry:write', entry => {
-    emittedEntries.push(entry.entry)
+    emittedEntries.push(entry)
   })
 
   t.after(async () => {
@@ -87,15 +87,15 @@ test('caches request successfully', async t => {
   strictEqual(emittedEntries.length, 1)
   const emittedEntry = emittedEntries[0]
   ok(emittedEntry.id)
-  strictEqual(emittedEntry.origin, origin)
-  strictEqual(emittedEntry.method, 'GET')
-  strictEqual(emittedEntry.path, '/')
-  strictEqual(emittedEntry.statusCode, 200)
-  ok(emittedEntry.headers)
-  ok(emittedEntry.cacheTags)
-  ok(emittedEntry.cachedAt)
-  ok(emittedEntry.staleAt)
-  ok(emittedEntry.deleteAt)
+  strictEqual(emittedEntry.value.statusCode, 200)
+  ok(emittedEntry.value.headers)
+  ok(emittedEntry.value.cachedAt)
+  ok(emittedEntry.value.staleAt)
+  ok(emittedEntry.value.deleteAt)
+  strictEqual(emittedEntry.metadata.origin, origin)
+  strictEqual(emittedEntry.metadata.method, 'GET')
+  strictEqual(emittedEntry.metadata.path, '/')
+  ok(emittedEntry.metadata.tags)
 })
 
 test('caches binary request successfully', async t => {
@@ -776,9 +776,9 @@ test('should handle big number of concurrent requests', async t => {
 
   const keys = await getPrefixedKeys(prefix)
 
-  const metadataKeys = keys.filter(key => key.includes('metadata|'))
-  strictEqual(metadataKeys.length, 2)
-
-  const valuesKeys = keys.filter(key => key.includes('body|'))
+  const valuesKeys = keys.filter(key => key.includes('value|'))
   strictEqual(valuesKeys.length, 2)
+
+  const bodiesKeys = keys.filter(key => key.includes('body|'))
+  strictEqual(bodiesKeys.length, 2)
 })

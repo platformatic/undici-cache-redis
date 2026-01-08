@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import {
   createStore,
   createTags,
@@ -38,7 +38,7 @@ test('caches request successfully', async t => {
   const origin = `http://localhost:${(server.address() as AddressInfo).port}`
   const client = new Client(origin).compose(interceptors.cache({ store }))
 
-  const emittedEntries: CacheEntry[] = []
+  const emittedEntries: CacheValueWithAdditionalProperties[] = []
   store.on('write', entry => {
     emittedEntries.push(entry)
   })

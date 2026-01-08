@@ -1,4 +1,4 @@
-import type { CacheEntry } from '../types.ts'
+import type { CacheValue, CacheValueAdditionalProperties } from '../types.ts'
 
 export interface Keys {
   routes: string
@@ -6,23 +6,31 @@ export interface Keys {
   requests: string
   request: string
   variants: string
-  metadata: string
+  value: string
   body: string
 }
 
-export interface CacheIdentifier {
+export interface CacheMetadata extends CacheValueAdditionalProperties {
   score: string
-  id: string
   specificity: number
-  vary: Record<string, string>
-  tags: string[]
   hash: string
-  expireAt: number
+  vary: Record<string, string>
+  deleteAt: number
 }
 
-export interface CacheMetadata {
-  identifier: CacheIdentifier
-  entry: CacheEntry
+export interface CacheEntry {
+  metadata: CacheMetadata
+  value: CacheValue
+}
+
+export interface AddedCacheEntry extends CacheEntry {
+  prefix: string
+  id: string
+}
+
+export interface RemovedCacheEntry {
+  prefix: string
+  id: string
 }
 
 export interface CleanupTask {

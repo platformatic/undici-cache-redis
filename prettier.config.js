@@ -5,6 +5,5 @@ export default {
   bracketSpacing: true,
   trailingComma: 'none',
   arrowParens: 'avoid',
-  plugins: ['prettier-plugin-space-before-function-paren'],
-  ignore: ['test/**/*.js']
+  plugins: ['prettier-plugin-space-before-function-paren']
 }

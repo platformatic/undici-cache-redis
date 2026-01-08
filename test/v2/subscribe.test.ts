@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { AddedCacheEntry } from '../../src/v2/types.ts'
 import {
   createManager,
   createStore,
@@ -41,11 +41,11 @@ test('should notify when a new key is added', async t => {
 
   await manager.subscribe()
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: AddedCacheEntry[] = []
   manager.on('subscription:entry:add', entry => {
     // This might happen if test suite is run in parallel
     if (entry.prefix === prefix) {
-      addedEntries.push(entry.entry)
+      addedEntries.push(entry)
     }
   })
 
@@ -94,15 +94,15 @@ test('should notify when a new key is added', async t => {
 
   const newEntry = addedEntries[0]
   ok(newEntry.id)
-  strictEqual(newEntry.keyPrefix, prefix)
-  strictEqual(newEntry.origin, origin)
-  strictEqual(newEntry.path, '/')
-  strictEqual(newEntry.method, 'GET')
-  strictEqual(newEntry.statusCode, 200)
-  deepStrictEqual(newEntry.cacheTags, listTags(tags, 1, 2).sort())
-  ok(newEntry.headers)
-  strictEqual(typeof newEntry.cachedAt, 'number')
-  strictEqual(typeof newEntry.deleteAt, 'number')
+  strictEqual(newEntry.value.statusCode, 200)
+  ok(newEntry.value.headers)
+  strictEqual(typeof newEntry.value.cachedAt, 'number')
+  strictEqual(typeof newEntry.value.deleteAt, 'number')
+  strictEqual(newEntry.metadata.prefix, prefix)
+  strictEqual(newEntry.metadata.origin, origin)
+  strictEqual(newEntry.metadata.path, '/')
+  strictEqual(newEntry.metadata.method, 'GET')
+  deepStrictEqual(newEntry.metadata.tags, listTags(tags, 1, 2).sort())
 })
 
 test('should notify when invalidates response by cache tag', async t => {
@@ -122,11 +122,11 @@ test('should notify when invalidates response by cache tag', async t => {
 
   await once(server, 'listening')
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: AddedCacheEntry[] = []
   manager.on('subscription:entry:add', entry => {
     // This might happen if test suite is run in parallel
     if (entry.prefix === prefix) {
-      addedEntries.push(entry.entry)
+      addedEntries.push(entry)
     }
   })
 
@@ -195,11 +195,11 @@ test('should notify when invalidates response by cache key', async t => {
 
   await manager.subscribe()
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: AddedCacheEntry[] = []
   manager.on('subscription:entry:add', entry => {
     // This might happen if test suite is run in parallel
     if (entry.prefix === prefix) {
-      addedEntries.push(entry.entry)
+      addedEntries.push(entry)
     }
   })
 
@@ -270,11 +270,11 @@ test('should notify when cache entry expires', async t => {
 
   await manager.subscribe()
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: AddedCacheEntry[] = []
   manager.on('subscription:entry:add', entry => {
     // This might happen if test suite is run in parallel
     if (entry.prefix === prefix) {
-      addedEntries.push(entry.entry)
+      addedEntries.push(entry)
     }
   })
 

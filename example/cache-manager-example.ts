@@ -1,12 +1,12 @@
 import { Agent, interceptors, setGlobalDispatcher } from 'undici'
-import { type CacheEntry, createManager, createStore } from '../src/index.ts'
+import { type CacheValue, createManager, createStore } from '../src/index.ts'
 
 interface CacheAnalysis {
   totalEntries: number
   byStatusCode: Map<number, number>
   byPath: Map<string, number>
-  oldestEntry: CacheEntry | null
-  newestEntry: CacheEntry | null
+  oldestEntry: CacheValue | null
+  newestEntry: CacheValue | null
 }
 
 const API_BASE_URL = 'http://localhost:3000'
@@ -47,10 +47,10 @@ async function demonstrateCacheManagement (): Promise<void> {
 
     await cacheManager.streamEntries(entry => {
       totalEntries++
-      console.info(`  📄 ${entry.path} (tags: [${entry.cacheTags.join(', ')}])`)
+      console.info(`  📄 ${entry.path} (tags: [${entry.tags.join(', ')}])`)
 
       // Group entries by tags
-      for (const tag of entry.cacheTags) {
+      for (const tag of entry.tags) {
         if (!entriesByTag.has(tag)) {
           entriesByTag.set(tag, [])
         }
@@ -110,7 +110,7 @@ async function demonstrateCacheManagement (): Promise<void> {
     const remainingEntries: string[] = []
     await cacheManager.streamEntries(entry => {
       afterCount++
-      remainingEntries.push(`${entry.path} [${entry.cacheTags.join(', ')}]`)
+      remainingEntries.push(`${entry.path} [${entry.tags.join(', ')}]`)
     }, '')
     console.info(`📊 Total entries: ${afterCount}`)
     console.info('📋 Remaining entries:')
@@ -198,7 +198,7 @@ async function demonstrateCacheManagement (): Promise<void> {
     let finalCount = 0
     await cacheManager.streamEntries(entry => {
       finalCount++
-      console.info(`  📄 ${entry.path} [${entry.cacheTags.join(', ')}]`)
+      console.info(`  📄 ${entry.path} [${entry.tags.join(', ')}]`)
     }, '')
     console.info(`📊 Final total entries: ${finalCount}`)
 

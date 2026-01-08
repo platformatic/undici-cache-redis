@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import {
   createManager,
   createStore,
@@ -37,10 +37,10 @@ test('should notify when a new key is added', async t => {
   const manager = await createManager(t)
   await manager.subscribe()
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: CacheValueWithAdditionalProperties[] = []
   manager.on('add-entry', entry => {
     // This might happen if test suite is run in parallel
-    if (entry.keyPrefix === prefix) {
+    if (entry.prefix === prefix) {
       addedEntries.push(entry)
     }
   })
@@ -95,12 +95,12 @@ test('should notify when a new key is added', async t => {
 
   const newEntry = addedEntries[0]
   ok(newEntry.id)
-  strictEqual(newEntry.keyPrefix, prefix)
+  strictEqual(newEntry.prefix, prefix)
   strictEqual(newEntry.origin, origin)
   strictEqual(newEntry.path, '/')
   strictEqual(newEntry.method, 'GET')
   strictEqual(newEntry.statusCode, 200)
-  deepStrictEqual(newEntry.cacheTags, listTags(tags, 1, 2).sort())
+  deepStrictEqual(newEntry.tags, listTags(tags, 1, 2).sort())
   ok(newEntry.headers)
   strictEqual(typeof newEntry.cachedAt, 'number')
   strictEqual(typeof newEntry.deleteAt, 'number')
@@ -123,16 +123,16 @@ test('should notify when invalidates response by cache tag', async t => {
 
   const manager = await createManager(t)
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: CacheValueWithAdditionalProperties[] = []
   manager.on('add-entry', entry => {
-    if (entry.keyPrefix === prefix) {
+    if (entry.prefix === prefix) {
       addedEntries.push(entry)
     }
   })
 
-  const deletedEntries: CacheEntry[] = []
+  const deletedEntries: CacheValueWithAdditionalProperties[] = []
   manager.on('delete-entry', entry => {
-    if (entry.keyPrefix === prefix) {
+    if (entry.prefix === prefix) {
       deletedEntries.push(entry)
     }
   })
@@ -183,7 +183,7 @@ test('should notify when invalidates response by cache tag', async t => {
 
   const deletedEntry = deletedEntries[0]
   ok(deletedEntry.id)
-  strictEqual(deletedEntry.keyPrefix, prefix)
+  strictEqual(deletedEntry.prefix, prefix)
 
   strictEqual(deletedEntry.id, addedEntry.id)
 })
@@ -204,16 +204,16 @@ test('should notify when invalidates response by cache key', async t => {
   const manager = await createManager(t, { prefix })
   await manager.subscribe()
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: CacheValueWithAdditionalProperties[] = []
   manager.on('add-entry', entry => {
-    if (entry.keyPrefix === prefix) {
+    if (entry.prefix === prefix) {
       addedEntries.push(entry)
     }
   })
 
-  const deletedEntries: CacheEntry[] = []
+  const deletedEntries: CacheValueWithAdditionalProperties[] = []
   manager.on('delete-entry', entry => {
-    if (entry.keyPrefix === prefix) {
+    if (entry.prefix === prefix) {
       deletedEntries.push(entry)
     }
   })
@@ -262,7 +262,7 @@ test('should notify when invalidates response by cache key', async t => {
 
   const deletedEntry = deletedEntries[0]
   ok(deletedEntry.id)
-  strictEqual(deletedEntry.keyPrefix, prefix)
+  strictEqual(deletedEntry.prefix, prefix)
 
   strictEqual(deletedEntry.id, addedEntry.id)
 })
@@ -283,16 +283,16 @@ test('should notify when cache entry expires', async t => {
   const manager = await createManager(t, { prefix })
   await manager.subscribe()
 
-  const addedEntries: CacheEntry[] = []
+  const addedEntries: CacheValueWithAdditionalProperties[] = []
   manager.on('add-entry', entry => {
-    if (entry.keyPrefix === prefix) {
+    if (entry.prefix === prefix) {
       addedEntries.push(entry)
     }
   })
 
-  const deletedEntries: CacheEntry[] = []
+  const deletedEntries: CacheValueWithAdditionalProperties[] = []
   manager.on('delete-entry', entry => {
-    if (entry.keyPrefix === prefix) {
+    if (entry.prefix === prefix) {
       deletedEntries.push(entry)
     }
   })
@@ -336,7 +336,7 @@ test('should notify when cache entry expires', async t => {
 
   const deletedEntry = deletedEntries[0]
   ok(deletedEntry.id)
-  strictEqual(deletedEntry.keyPrefix, prefix)
+  strictEqual(deletedEntry.prefix, prefix)
 
   strictEqual(deletedEntry.id, addedEntry.id)
 })

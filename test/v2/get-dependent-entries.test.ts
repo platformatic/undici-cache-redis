@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import type { Cache } from '../../src/v2/cache.ts'
 import {
   createManager,
@@ -118,7 +118,7 @@ test('should stream cache entries', async t => {
   // Getting all request from the manager
   await manager.subscribe()
 
-  const allEntries: CacheEntry[] = []
+  const allEntries: CacheValueWithAdditionalProperties[] = []
   await manager.streamEntries(entry => allEntries.push(entry), [prefix1, prefix2])
   strictEqual(allEntries.length, 6)
 
@@ -133,7 +133,7 @@ test('should stream cache entries', async t => {
     const expectedEntry = allEntries.find(entry => entry.path === '/bar')
     ok(entry)
     deepStrictEqual(entry, expectedEntry)
-    deepStrictEqual(entry.cacheTags.sort(), listTags(tags, 1, 2, 4).sort())
+    deepStrictEqual(entry.tags.sort(), listTags(tags, 1, 2, 4).sort())
   }
 
   {
@@ -141,7 +141,7 @@ test('should stream cache entries', async t => {
     const expectedEntry = allEntries.find(entry => entry.path === '/baz')
     ok(entry)
     deepStrictEqual(entry, expectedEntry)
-    deepStrictEqual(entry.cacheTags.sort(), listTags(tags, 1, 2).sort())
+    deepStrictEqual(entry.tags.sort(), listTags(tags, 1, 2).sort())
   }
 
   {
@@ -149,6 +149,6 @@ test('should stream cache entries', async t => {
     const expectedEntry = allEntries.find(entry => entry.path === '/boa')
     ok(entry)
     deepStrictEqual(entry, expectedEntry)
-    deepStrictEqual(entry.cacheTags.sort(), listTags(tags, 1, 2, 6).sort())
+    deepStrictEqual(entry.tags.sort(), listTags(tags, 1, 2, 6).sort())
   }
 })

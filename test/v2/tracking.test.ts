@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { Readable, type Writable } from 'node:stream'
 import { test } from 'node:test'
 import { Client, interceptors } from 'undici'
-import { type CacheEntryWithBody, type CacheStore } from '../../src/index.ts'
+import { type CacheValue, type CacheValueWithBody } from '../../src/index.ts'
 import type { Cache } from '../../src/v2/cache.ts'
 import { createStore, preparePrefix, setVersion, waitForEvents } from '../helper.ts'
 
@@ -20,13 +20,7 @@ function writeResponse (stream: Writable, body: (string | Buffer)[] = []) {
   stream.end()
 }
 
-async function verifyResponse (
-  store: CacheStore,
-  response: CacheEntryWithBody,
-  requestKey: object,
-  requestValue: object,
-  requestBody: unknown[]
-) {
+async function verifyResponse (response: CacheValueWithBody, requestValue: object, requestBody: unknown[]) {
   notEqual(response, undefined)
   notEqual(response.body, undefined)
 
@@ -42,11 +36,7 @@ async function verifyResponse (
   deepStrictEqual(
     { ...response, body },
     {
-      ...requestKey,
       ...requestValue,
-      id: response.id,
-      keyPrefix: (store as Cache).prefix,
-      cacheTags: [],
       body: requestBody
     }
   )
@@ -79,7 +69,7 @@ test('should properly fill up and use the cache', async t => {
 
   // Write the response to the store
   await waitForEvents(store, 'entry:write', 1, async () => {
-    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValue)!
     notEqual(writeStream, undefined)
     writeResponse(writeStream, requestBody)
 
@@ -90,7 +80,7 @@ test('should properly fill up and use the cache', async t => {
   let readStream = await store.get(structuredClone(request))
   notEqual(readStream, undefined)
 
-  await verifyResponse(store, readStream!, request, requestValue, requestBody)
+  await verifyResponse(readStream!, requestValue, requestBody)
 
   // Now let's write another request to the store
   const anotherRequest = {
@@ -118,7 +108,7 @@ test('should properly fill up and use the cache', async t => {
     const writeStream = store.createWriteStream(anotherRequest, {
       ...anotherValue,
       body: []
-    } as unknown as CacheEntryWithBody)!
+    } as unknown as CacheValue)!
     notEqual(writeStream, undefined)
     writeResponse(writeStream, anotherBody)
 
@@ -128,7 +118,7 @@ test('should properly fill up and use the cache', async t => {
   readStream = await store.get(anotherRequest)
   notEqual(readStream, undefined)
 
-  await verifyResponse(store, readStream!, anotherRequest, anotherValue, anotherBody)
+  await verifyResponse(readStream!, anotherValue, anotherBody)
 
   // Let's disconnect the store to make sure we are not hitting the storage anymore
   await store.client.quit()
@@ -138,11 +128,11 @@ test('should properly fill up and use the cache', async t => {
     // Now try fetching it with a deep copy of the original request
     const readStream1 = await store.get(structuredClone(request))
     notEqual(readStream1, undefined)
-    await verifyResponse(store, readStream1!, request, requestValue, requestBody)
+    await verifyResponse(readStream1!, requestValue, requestBody)
 
     const readStream2 = await store.get(anotherRequest)
     notEqual(readStream, undefined)
-    await verifyResponse(store, readStream2!, anotherRequest, anotherValue, anotherBody)
+    await verifyResponse(readStream2!, anotherValue, anotherBody)
   }
 })
 

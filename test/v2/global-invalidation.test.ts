@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import type { Cache } from '../../src/v2/cache.ts'
 import {
   createManager,
@@ -132,7 +132,7 @@ test('should stream cache entries', async t => {
     ;(manager as Cache).deleteTags([listTags(tags, 1, 2)], [prefix1, prefix2])
   })
 
-  const foundEntries: CacheEntry[] = []
+  const foundEntries: CacheValueWithAdditionalProperties[] = []
   await manager.streamEntries(entry => foundEntries.push(entry), [prefix1, prefix2])
   strictEqual(foundEntries.length, 2)
 

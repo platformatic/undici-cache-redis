@@ -4,7 +4,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import {
   createManager,
   createStore,
@@ -75,17 +75,17 @@ test('should stream cache entries', async t => {
   strictEqual(requestsToOrigin, 2)
 
   // Getting all request from the manager
-  const foundEntries: CacheEntry[] = []
+  const foundEntries: CacheValueWithAdditionalProperties[] = []
   await manager.streamEntries(entry => foundEntries.push(entry), prefix1)
 
   strictEqual(foundEntries.length, 1)
 
   const foundEntry = foundEntries[0]
-  strictEqual(foundEntry.keyPrefix, prefix1)
+  strictEqual(foundEntry.prefix, prefix1)
   strictEqual(foundEntry.origin, origin)
   strictEqual(foundEntry.method, 'GET')
   strictEqual(foundEntry.path, '/')
-  deepStrictEqual(foundEntry.cacheTags, listTags(tags, 1, 2).sort())
+  deepStrictEqual(foundEntry.tags, listTags(tags, 1, 2).sort())
   strictEqual(typeof foundEntry.id, 'string')
   strictEqual(typeof foundEntry.headers, 'object')
   strictEqual(typeof foundEntry.cachedAt, 'number')

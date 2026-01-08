@@ -33,8 +33,6 @@ function cacheStoreTests (version) {
     return _createStore(opts, version)
   }
 
-  const readResponse = _readResponse.bind(null, version)
-
   describe('integration', () => {
     test('matches interface', async (t) => {
       const store = createStore()
@@ -240,7 +238,7 @@ function cacheStoreTests (version) {
       {
         const result = await store.get(structuredClone(key))
         notEqual(result, undefined)
-        deepStrictEqual(omitV2Props(result, version), {
+        deepStrictEqual(result, {
           ...value,
           body
         })
@@ -271,7 +269,7 @@ function cacheStoreTests (version) {
       {
         const result = await store.get(structuredClone(key))
         notEqual(result, undefined)
-        deepStrictEqual(omitV2Props(result, version), {
+        deepStrictEqual(result, {
           ...value,
           body
         })
@@ -887,7 +885,7 @@ function writeResponse (stream, body = []) {
  * @param {import('../lib/internal-types.d.ts').GetResult} result
  * @returns {Promise<import('../lib/internal-types.d.ts').GetResult | { body: Buffer[] }>}
  */
-async function _readResponse (version, { body: src, ...response }) {
+async function readResponse ({ body: src, ...response }) {
   notEqual(response, undefined)
   notEqual(src, undefined)
 
@@ -903,21 +901,7 @@ async function _readResponse (version, { body: src, ...response }) {
 
   await once(stream, 'end')
 
-  return {
-    ...omitV2Props(response, version),
-    body
-  }
-}
-
-function omitV2Props (obj, version) {
-  if (version === '2.0.0') {
-    // Ignore additional v2 properties
-    for (const prop of ['cacheTags', 'id', 'keyPrefix', 'method', 'origin', 'path']) {
-      delete obj[prop]
-    }
-  }
-
-  return obj
+  return { ...response, body }
 }
 
 async function cleanValkey () {

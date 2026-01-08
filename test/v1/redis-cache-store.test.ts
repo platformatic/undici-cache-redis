@@ -3,7 +3,7 @@ import { once } from 'node:events'
 import { Readable, type Writable } from 'node:stream'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { type CacheEntryWithBody } from '../../src/index.ts'
+import type { CacheValueWithBody } from '../../src/types.ts'
 import {
   createStore,
   createTags,
@@ -66,7 +66,7 @@ test('basic functionality', async t => {
   equal(await store.get(request), undefined)
 
   // Write the response to the store
-  let writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  let writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   notEqual(writeStream, undefined)
   writeResponse(writeStream, requestBody)
 
@@ -106,7 +106,7 @@ test('basic functionality', async t => {
   writeStream = store.createWriteStream(anotherRequest, {
     ...anotherValue,
     body: []
-  } as unknown as CacheEntryWithBody)!
+  } as unknown as CacheValueWithBody)!
   notEqual(writeStream, undefined)
   writeResponse(writeStream, anotherBody)
 
@@ -151,7 +151,7 @@ test('returns stale response if possible', async t => {
     await store.close()
   })
 
-  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   notEqual(writeStream, undefined)
   writeResponse(writeStream, requestBody)
 
@@ -199,7 +199,7 @@ test('a stale request is not overwritten', async t => {
   equal(await store.get(key), undefined)
 
   {
-    const writable = store.createWriteStream(key, value as unknown as CacheEntryWithBody)!
+    const writable = store.createWriteStream(key, value as unknown as CacheValueWithBody)!
     notEqual(writable, undefined)
     writeResponse(writable, body)
   }
@@ -229,7 +229,7 @@ test('a stale request is not overwritten', async t => {
   const body2 = [Buffer.from('foo'), Buffer.from('123')]
 
   {
-    const writable = store.createWriteStream(key, value2 as unknown as CacheEntryWithBody)!
+    const writable = store.createWriteStream(key, value2 as unknown as CacheValueWithBody)!
     notEqual(writable, undefined)
     writeResponse(writable, body2)
   }
@@ -275,7 +275,7 @@ test("doesn't return response past deletedAt", async t => {
     await store.close()
   })
 
-  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   notEqual(writeStream, undefined)
   writeResponse(writeStream, requestBody)
 
@@ -323,7 +323,7 @@ test('respects vary directives', async t => {
   // Sanity check
   equal(await store.get(request), undefined)
 
-  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   notEqual(writeStream, undefined)
   writeResponse(writeStream, requestBody)
 
@@ -382,7 +382,7 @@ test('respects empty vary directives', async t => {
   // Sanity check
   equal(await store.get(request), undefined)
 
-  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   notEqual(writeStream, undefined)
   writeResponse(writeStream, requestBody)
 
@@ -427,7 +427,7 @@ test('returns cached values', async t => {
   })
 
   // Write the response to the store
-  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   writeResponse(writeStream)
 
   // Wait for redis to be written too
@@ -465,7 +465,7 @@ test('invalidates cache by cache keys', async t => {
   })
 
   // Write the response to the store
-  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   writeResponse(writeStream)
 
   // Wait for redis to be written too
@@ -523,7 +523,7 @@ test('invalidates cache by combined cache tag', async t => {
     }
 
     // Write the response to the store
-    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
     writeResponse(writeStream)
 
     // Wait for redis to be written too
@@ -552,7 +552,7 @@ test('invalidates cache by combined cache tag', async t => {
     }
 
     // Write the response to the store
-    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
     writeResponse(writeStream)
 
     // Wait for redis to be written too
@@ -581,7 +581,7 @@ test('invalidates cache by combined cache tag', async t => {
     }
 
     // Write the response to the store
-    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
     writeResponse(writeStream)
 
     // Wait for redis to be written too
@@ -644,7 +644,7 @@ test('invalidates cache by cache tag', async t => {
     }
 
     // Write the response to the store
-    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
     writeResponse(writeStream)
 
     // Wait for redis to be written too
@@ -673,7 +673,7 @@ test('invalidates cache by cache tag', async t => {
     }
 
     // Write the response to the store
-    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
     writeResponse(writeStream)
 
     // Wait for redis to be written too
@@ -702,7 +702,7 @@ test('invalidates cache by cache tag', async t => {
     }
 
     // Write the response to the store
-    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+    const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
     writeResponse(writeStream)
 
     // Wait for redis to be written too
@@ -758,7 +758,7 @@ test('saves entry with a custom id', async t => {
   equal(await store.get(request), undefined)
 
   // Write the response to the store
-  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheEntryWithBody)!
+  const writeStream = store.createWriteStream(request, requestValue as unknown as CacheValueWithBody)!
   notEqual(writeStream, undefined)
   writeResponse(writeStream, requestBody)
 
@@ -774,7 +774,7 @@ function writeResponse (stream: Writable, body: (string | Buffer)[] = []) {
   stream.end()
 }
 
-async function readResponse ({ body: src, ...response }: CacheEntryWithBody) {
+async function readResponse ({ body: src, ...response }: CacheValueWithBody) {
   notEqual(response, undefined)
   notEqual(src, undefined)
 

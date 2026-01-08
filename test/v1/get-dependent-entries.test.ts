@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import {
   createManager,
   createStore,
@@ -134,14 +134,14 @@ test('should stream cache entries', async t => {
   await manager.subscribe()
   t.after(() => manager.close())
 
-  const allEntries: CacheEntry[] = []
+  const allEntries: CacheValueWithAdditionalProperties[] = []
   await manager.streamEntries(entry => allEntries.push(entry), [prefix1, prefix2])
   strictEqual(allEntries.length, 6)
 
   const entry = allEntries.find(entry => entry.path === '/foo')!
   strictEqual(entry.headers['cache-tags'], createTagsHeader(tags, 1, 2))
 
-  const dependentEntries = await manager.getDependentEntries(entry.id, entry.keyPrefix)
+  const dependentEntries = await manager.getDependentEntries(entry.id, entry.prefix)
   strictEqual(dependentEntries.length, 3)
 
   {
@@ -149,7 +149,7 @@ test('should stream cache entries', async t => {
     const expectedEntry = allEntries.find(entry => entry.path === '/bar')
     ok(entry)
     deepStrictEqual(entry, expectedEntry)
-    deepStrictEqual(entry.cacheTags, listTags(tags, 1, 2, 4).sort())
+    deepStrictEqual(entry.tags, listTags(tags, 1, 2, 4).sort())
   }
 
   {
@@ -157,7 +157,7 @@ test('should stream cache entries', async t => {
     const expectedEntry = allEntries.find(entry => entry.path === '/baz')
     ok(entry)
     deepStrictEqual(entry, expectedEntry)
-    deepStrictEqual(entry.cacheTags, listTags(tags, 1, 2).sort())
+    deepStrictEqual(entry.tags, listTags(tags, 1, 2).sort())
   }
 
   {
@@ -165,6 +165,6 @@ test('should stream cache entries', async t => {
     const expectedEntry = allEntries.find(entry => entry.path === '/boa')
     ok(entry)
     deepStrictEqual(entry, expectedEntry)
-    deepStrictEqual(entry.cacheTags, listTags(tags, 1, 2, 6).sort())
+    deepStrictEqual(entry.tags, listTags(tags, 1, 2, 6).sort())
   }
 })

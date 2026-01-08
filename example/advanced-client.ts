@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Agent, type Dispatcher, interceptors, setGlobalDispatcher } from 'undici'
-import { type CacheEntry, type CacheStore, createManager, createStore } from '../src/index.ts'
+import { type CacheStore, type CacheValueWithAdditionalProperties, createManager, createStore } from '../src/index.ts'
 
 const API_BASE_URL = 'http://localhost:3000'
 
@@ -237,7 +237,7 @@ async function demonstrateCacheAnalytics (): Promise<void> {
   await cacheManager.streamEntries(entry => {
     totalEntries++
     entries.push(entry)
-    for (const tag of entry.cacheTags) {
+    for (const tag of entry.tags) {
       tagAnalysis[tag] = (tagAnalysis[tag] || 0) + 1
     }
   }, '')
@@ -253,13 +253,13 @@ async function demonstrateCacheAnalytics (): Promise<void> {
   console.info({ tagDistribution: tagAnalysis }, 'Cache entries by tag')
 
   // Sample some cache entries for analysis
-  const sampleEntries: (Partial<CacheEntry> & { age: number })[] = []
+  const sampleEntries: (Partial<CacheValueWithAdditionalProperties> & { age: number })[] = []
   await cacheManager.streamEntries(entry => {
     if (sampleEntries.length < 10) {
       sampleEntries.push({
         id: entry.id,
         path: entry.path,
-        cacheTags: entry.cacheTags,
+        tags: entry.tags,
         statusCode: entry.statusCode,
         age: Date.now() - entry.cachedAt
       })

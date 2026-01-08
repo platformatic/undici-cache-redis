@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import {
   createManager,
   createStore,
@@ -133,7 +133,7 @@ test('should stream cache entries', async t => {
 
   await store1.deleteTags([listTags(tags, 1, 2)])
 
-  const foundEntries: CacheEntry[] = []
+  const foundEntries: CacheValueWithAdditionalProperties[] = []
   await manager.streamEntries(entry => foundEntries.push(entry), [prefix1, prefix2])
   strictEqual(foundEntries.length, 2)
 

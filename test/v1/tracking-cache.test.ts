@@ -1,14 +1,14 @@
 import { deepStrictEqual, strictEqual } from 'node:assert'
 import { test } from 'node:test'
-import type { CacheEntry, CacheEntryWithBody, CacheKey } from '../../src/types.ts'
-import { TrackingCache, type TrackingCacheEntryWithKey } from '../../src/v1/tracking-cache.ts'
+import type { CacheKey, CacheValue, CacheValueWithBody } from '../../src/types.ts'
+import { TrackingCache, type TrackingCacheValueWithKey } from '../../src/v1/tracking-cache.ts'
 
 test('should override cache entries', async () => {
-  const cache = new TrackingCache<CacheKey, Partial<CacheEntry>, Partial<CacheEntryWithBody>>()
+  const cache = new TrackingCache<CacheKey, Partial<CacheValue>, Partial<CacheValueWithBody>>()
 
   // Fill the cache with a same entries
   for (let i = 0; i < 10; i++) {
-    const entry = generateCacheEntry({ id: i, origin: 'http://test.com' })
+    const entry = generateCacheValue({ id: i, origin: 'http://test.com' })
     cache.set(entry.key, entry.metadata, entry.result)
   }
 
@@ -18,12 +18,12 @@ test('should override cache entries', async () => {
 test('should delete values when reaching a count threshold', async () => {
   const maxCount = 5
 
-  const cache = new TrackingCache<CacheKey, Partial<CacheEntry>, Partial<CacheEntryWithBody>>({ maxCount })
+  const cache = new TrackingCache<CacheKey, Partial<CacheValue>, Partial<CacheValueWithBody>>({ maxCount })
   const entries = []
 
   // Fill the cache
   for (let i = 0; i < maxCount; i++) {
-    const entry = generateCacheEntry({ id: i, origin: `http://test-${i}.com` })
+    const entry = generateCacheValue({ id: i, origin: `http://test-${i}.com` })
     cache.set(entry.key, entry.metadata, entry.result)
     entries.push(entry)
   }
@@ -33,7 +33,7 @@ test('should delete values when reaching a count threshold', async () => {
   cache.get(entries[1].key)
 
   // Add an extra entry that should trigger the deletion
-  const entry = generateCacheEntry({ id: maxCount, origin: 'http://extra.com' })
+  const entry = generateCacheValue({ id: maxCount, origin: 'http://extra.com' })
   cache.set(entry.key, entry.metadata, entry.result)
   entries.push(entry)
 
@@ -51,12 +51,12 @@ test('should delete values when reaching a size threshold', async () => {
   const bodySize = 10
   const cacheSize = maxSize / bodySize
 
-  const cache = new TrackingCache<CacheKey, Partial<CacheEntry>, Partial<CacheEntryWithBody>>({ maxSize })
+  const cache = new TrackingCache<CacheKey, Partial<CacheValue>, Partial<CacheValueWithBody>>({ maxSize })
   const entries = []
 
   // Fill the cache
   for (let i = 0; i < cacheSize; i++) {
-    const entry = generateCacheEntry({
+    const entry = generateCacheValue({
       id: i,
       origin: `http://test-${i}.com`,
       body: i.toString().repeat(bodySize)
@@ -70,7 +70,7 @@ test('should delete values when reaching a size threshold', async () => {
   cache.get(entries[1].key)
 
   // Add an extra entry that should trigger the deletion
-  const entry = generateCacheEntry({
+  const entry = generateCacheValue({
     id: cacheSize,
     origin: 'http://extra.com',
     body: 'e'.repeat(bodySize)
@@ -89,9 +89,9 @@ test('should delete values when reaching a size threshold', async () => {
 })
 
 test('should respect unused vary directives', async t => {
-  const cache = new TrackingCache<CacheKey, Partial<CacheEntry>, Partial<CacheEntryWithBody>>()
+  const cache = new TrackingCache<CacheKey, Partial<CacheValue>, Partial<CacheValueWithBody>>()
 
-  const entry1 = generateCacheEntry({
+  const entry1 = generateCacheValue({
     id: 'entry1',
     origin: 'http://test.com'
   })
@@ -113,9 +113,9 @@ test('should respect unused vary directives', async t => {
 })
 
 test('should respect vary directives', async t => {
-  const cache = new TrackingCache<CacheKey, Partial<CacheEntry>, Partial<CacheEntryWithBody>>()
+  const cache = new TrackingCache<CacheKey, Partial<CacheValue>, Partial<CacheValueWithBody>>()
 
-  const entry1 = generateCacheEntry({
+  const entry1 = generateCacheValue({
     id: 'entry1',
     origin: 'http://test.com'
   })
@@ -140,7 +140,7 @@ test('should respect vary directives', async t => {
   })
 })
 
-function generateCacheEntry ({
+function generateCacheValue ({
   id,
   origin,
   body
@@ -148,7 +148,7 @@ function generateCacheEntry ({
   id: string | number
   origin: string
   body?: string
-}): TrackingCacheEntryWithKey<Partial<CacheEntry>, Partial<CacheEntryWithBody>, CacheKey> {
+}): TrackingCacheValueWithKey<Partial<CacheValue>, Partial<CacheValueWithBody>, CacheKey> {
   id = (id ?? Math.random().toString(36).slice(2)).toString()
   origin = origin ?? 'http://test.com'
   body = body ?? 'test-body'

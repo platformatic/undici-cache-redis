@@ -1,18 +1,16 @@
 import lruMap from 'lru_map'
-import type { CacheEntryWithBody, CacheKey, CacheStoreOptions } from '../types.ts'
-import type { CacheMetadata, Keys } from './types.ts'
-import { KeysStorage, serializeHeaders, varyMatches } from './utils.ts'
+import type { CacheKey, CacheStoreOptions, CacheValueWithBody } from '../types.ts'
+import type { CacheEntry, Keys } from './types.ts'
+import { serializeHeaders, varyMatches } from './utils.ts'
 
 export class TrackingCache {
-  #data: lruMap.LRUMap<string, CacheMetadata[]>
-  #keys: KeysStorage
+  #data: lruMap.LRUMap<string, CacheEntry[]>
   #count: number
   #size: number
   #maxSize: number
   #maxCount: number
 
   constructor (options: Pick<CacheStoreOptions, 'maxSize' | 'maxCount'>) {
-    this.#keys = new KeysStorage()
     this.#count = 0
     this.#size = 0
     this.#maxCount = options.maxCount ?? Number.POSITIVE_INFINITY
@@ -28,21 +26,19 @@ export class TrackingCache {
     return this.#size
   }
 
-  get (key: CacheKey, prefixes: string[]): CacheEntryWithBody | undefined {
+  get (key: CacheKey, prefixes: string[]): CacheValueWithBody | undefined {
     const headers = serializeHeaders(key.headers)
 
     for (const prefix of prefixes) {
-      const keys = this.#keys.get(key, prefix)
-
-      const entries = this.#data.get(keys.request)
+      const entries = this.#data.get(this.#getRequestKey(key, prefix))
 
       if (entries === undefined) {
         continue
       }
 
       for (const entry of entries) {
-        if (varyMatches(entry.identifier, headers)) {
-          return entry.entry as CacheEntryWithBody
+        if (varyMatches(entry.metadata, headers)) {
+          return entry.value as CacheValueWithBody
         }
       }
     }
@@ -50,7 +46,7 @@ export class TrackingCache {
     return undefined
   }
 
-  set (keys: Keys, metadata: CacheMetadata): void {
+  set (keys: Keys, metadata: CacheEntry): void {
     const key = keys.request
 
     let entries = this.#data.get(key)
@@ -60,8 +56,8 @@ export class TrackingCache {
     }
 
     // Search if there is already an entry with the same prefix
-    const hash = metadata.identifier!.hash
-    const existingEntry = entries.some(entry => entry.identifier.hash === hash)
+    const hash = metadata.metadata!.hash
+    const existingEntry = entries.some(entry => entry.metadata.hash === hash)
 
     /* c8 ignore next 3 */
     if (existingEntry) {
@@ -70,11 +66,11 @@ export class TrackingCache {
 
     entries.push(metadata)
     // Always keep the most specific entries first
-    entries.sort((a, b) => b.identifier.specificity - a.identifier.specificity)
+    entries.sort((a, b) => b.metadata.specificity - a.metadata.specificity)
 
     // Update counters
     this.#count++
-    this.#size += this.#calculateEntrySize(metadata.entry as CacheEntryWithBody)
+    this.#size += this.#calculateEntrySize(metadata.value as CacheValueWithBody)
 
     // If we exceed size limits, clean up
     if (this.#count > this.#maxCount || this.#size > this.#maxSize) {
@@ -84,8 +80,7 @@ export class TrackingCache {
 
   delete (key: CacheKey, prefixes: string[]): void {
     for (const prefix of prefixes) {
-      const keys = this.#keys.get(key, prefix)
-      const entries = this.#data.delete(keys.request)
+      const entries = this.#data.delete(this.#getRequestKey(key, prefix))
 
       if (entries) {
         this.#afterRemove(entries)
@@ -93,7 +88,7 @@ export class TrackingCache {
     }
   }
 
-  #calculateEntrySize (result: CacheEntryWithBody): number {
+  #calculateEntrySize (result: CacheValueWithBody): number {
     let size = 0
 
     for (const buffer of result.body as Iterable<Buffer>) {
@@ -111,10 +106,16 @@ export class TrackingCache {
     }
   }
 
-  #afterRemove (entries: CacheMetadata[]): void {
+  #afterRemove (entries: CacheEntry[]): void {
     for (const entry of entries) {
       this.#count--
-      this.#size -= this.#calculateEntrySize(entry.entry as CacheEntryWithBody)
+      this.#size -= this.#calculateEntrySize(entry.value as CacheValueWithBody)
     }
+  }
+
+  // Keep this in sync with KeysStorage#get
+  #getRequestKey (key: CacheKey, prefix?: string): string {
+    /* c8 ignore next */
+    return `${prefix ?? ''}${prefix?.length ? '|' : ''}request|${key.origin ?? ''}|${key.path ?? ''}|${key.method ?? ''}`
   }
 }

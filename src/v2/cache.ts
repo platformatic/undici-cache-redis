@@ -5,17 +5,26 @@ import { Writable } from 'node:stream'
 import pMap from 'p-map'
 import xxhash, { type XXHashAPI } from 'xxhash-wasm'
 import type {
-  CacheEntry,
-  CacheEntryWithBody,
   CacheKey,
   CacheManager,
   CacheManagerOptions,
-  CacheStore
+  CacheStore,
+  CacheValue,
+  CacheValueWithAdditionalProperties,
+  CacheValueWithBody
 } from '../types.ts'
 import { ensureArray, getKeyspaceEventsChannels } from '../utils.ts'
 import { InvalidOptionError, MaxEntrySizeExceededError, UserError } from './errors.ts'
 import { TrackingCache } from './tracking-cache.ts'
-import type { CacheIdentifier, CacheMetadata, CleanupTask, Keys, VariantsIterationResultCallback } from './types.ts'
+import type {
+  AddedCacheEntry,
+  CacheEntry,
+  CacheMetadata,
+  CleanupTask,
+  Keys,
+  RemovedCacheEntry,
+  VariantsIterationResultCallback
+} from './types.ts'
 import { decodeBody, KeysStorage, replaceKeyPlaceholder, serializeHeaders, varyMatches } from './utils.ts'
 
 export const defaultOptions: Partial<CacheManagerOptions> = {
@@ -103,6 +112,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     const { keyPrefix, ...clientOpts } = (options.clientOpts as RedisOptions) ?? {}
 
     this.#options = options
+    this.#options.clientConfigKeyspaceEventNotify ??= true
     this.#prefix = options.prefix ?? keyPrefix ?? ''
     this.#clientOptions = { enableAutoPipelining: true, ...clientOpts }
     this.#primaryClient = new Redis(this.#clientOptions)
@@ -177,17 +187,17 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     await this.#closeClient(this.#subscriptionClient)
   }
 
-  async get (key: CacheKey, prefixes?: string | string[]): Promise<CacheEntryWithBody | undefined>
+  async get (key: CacheKey, prefixes?: string | string[]): Promise<CacheValueWithBody | undefined>
   async get (
     key: CacheKey,
     prefixes: string | string[] | undefined,
     includeBody: false
-  ): Promise<CacheEntry | undefined>
+  ): Promise<CacheValue | CacheValueWithBody | undefined>
   async get (
     key: CacheKey,
     prefixes: string | string[] | undefined = undefined,
     includeBody: boolean = true
-  ): Promise<CacheEntry | CacheEntryWithBody | undefined> {
+  ): Promise<CacheValue | CacheValueWithBody | undefined> {
     /* c8 ignore next 3 */
     if (this.#closed) {
       return undefined
@@ -222,11 +232,11 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       const now = Date.now() / 1000
 
       id = await this.#iterateVariants<string>(keys.request, prefix, async (raw: string) => {
-        const entry = JSON.parse(raw) as CacheIdentifier
+        const entry = JSON.parse(raw) as CacheMetadata
 
         // The member has expired, autoclean
         /* c8 ignore next 3 */
-        if (entry.expireAt < now) {
+        if (entry.deleteAt < now) {
           return { expired: true }
         }
 
@@ -249,45 +259,45 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     if (includeBody) {
       // There is a key, get the metadata and body
       contents = await this.#primaryClient.mget(
-        replaceKeyPlaceholder(keys.metadata, id),
+        replaceKeyPlaceholder(keys.value, id),
         replaceKeyPlaceholder(keys.body, id)
       )
+      /* c8 ignore next 3 */
     } else {
-      contents = [await this.#primaryClient.get(replaceKeyPlaceholder(keys.metadata, id))]
+      contents = [await this.#primaryClient.get(replaceKeyPlaceholder(keys.value, id))]
     }
 
-    const metadata = JSON.parse(contents[0]!) as CacheMetadata
-    const entry: CacheEntry | CacheEntryWithBody = metadata.entry
+    const entry = JSON.parse(contents[0]!) as CacheEntry
+    const value: CacheValue | CacheValue = entry.value
 
-    entry.cacheTags = metadata.identifier.tags
-
-    const entryWithBody: CacheEntryWithBody = entry as CacheEntryWithBody
+    const entryWithBody: CacheValueWithBody = value as CacheValueWithBody
     if (includeBody) {
       // Deserialize space separated base64 body chunks
       entryWithBody.body = decodeBody(contents[1]!)
     }
 
     if (this.#trackingCache) {
-      this.#trackingCache.set(keys, metadata)
+      this.#trackingCache.set(keys, entry)
       this.emit('tracking:add', { prefix, origin: key.origin, path: key.path, method: key.method, headers })
     }
 
-    return entry
+    return value
   }
 
   /* c8 ignore next 4 */
-  async getKeys (keys: Iterable<CacheKey>, prefixes?: string | string[]): Promise<CacheEntryWithBody[]> {
+  async getKeys (keys: Iterable<CacheKey>, prefixes?: string | string[]): Promise<CacheValueWithBody[]> {
     const results = await pMap(keys, key => this.get(key, prefixes), { concurrency: this.#concurrency })
-    return results.filter(entry => entry) as CacheEntryWithBody[]
+    return results.filter(entry => entry) as CacheValueWithBody[]
   }
 
-  async getTag (tag: string, prefixes?: string | string[]): Promise<CacheEntry[]> {
+  async getTag (tag: string, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]> {
     /* c8 ignore next 3 */
     if (this.#closed) {
       throw new UserError('Cache is closed.')
     }
 
-    const entries: CacheEntry[] = []
+    const entries: CacheValueWithAdditionalProperties[] = []
+    const now = Date.now() / 1000
 
     await pMap(
       this.#normalizePrefixes(prefixes),
@@ -314,23 +324,23 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
           }
 
           offset += ids.length
-          const membersData = await this.#primaryClient.mget(...ids.map(id => replaceKeyPlaceholder(keys.metadata, id)))
+          const membersData = await this.#primaryClient.mget(...ids.map(id => replaceKeyPlaceholder(keys.value, id)))
 
-          const keysBatch = new Set<CacheKey>()
           for (const member of membersData) {
             /* c8 ignore next 3 */
             if (!member) {
               continue
             }
 
-            const { id, origin, method, path } = JSON.parse(member).entry as CacheEntry
-            keysBatch.add({ id, origin, method, path })
-          }
+            const entry = JSON.parse(member) as CacheEntry
 
-          const batch = await pMap(keysBatch, key => this.get(key, keyPrefix, false), {
-            concurrency: this.#concurrency
-          })
-          entries.push(...(batch.filter(entry => entry) as CacheEntry[]))
+            /* c8 ignore next 3 */
+            if (entry.metadata.deleteAt < now) {
+              continue
+            }
+
+            entries.push(this.#convertToValueWithAdditionalProperties(entry))
+          }
         }
       },
       { concurrency: this.#concurrency }
@@ -339,8 +349,11 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     return entries
   }
 
-  /* c8 ignore next 6 */
-  async getTags (tags: Array<string | string[]>, prefixes?: string | string[]): Promise<CacheEntry[]> {
+  /* c8 ignore next 9 */
+  async getTags (
+    tags: Array<string | string[]>,
+    prefixes?: string | string[]
+  ): Promise<CacheValueWithAdditionalProperties[]> {
     const entries = await pMap(new Set(tags.flat(1)), tag => this.getTag(tag, prefixes), {
       concurrency: this.#concurrency
     })
@@ -356,7 +369,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     for (const prefix of this.#normalizePrefixes(prefixes)) {
       const keys = this.#keys.get({ id }, prefix)
 
-      const contents = await this.#primaryClient.mget(keys.metadata, keys.body)
+      const contents = await this.#primaryClient.mget(keys.value, keys.body)
 
       /* c8 ignore next 3 */
       if (!contents || contents.length < 2) {
@@ -364,11 +377,11 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       }
 
       const {
-        identifier: { expireAt }
-      } = JSON.parse(contents[0]!) as CacheMetadata
+        metadata: { deleteAt }
+      } = JSON.parse(contents[0]!) as CacheEntry
 
       /* c8 ignore next 3 */
-      if (expireAt < Date.now() / 1000) {
+      if (deleteAt < Date.now() / 1000) {
         continue
       }
 
@@ -381,7 +394,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     return null
   }
 
-  async getDependentEntries (id: string, prefixes?: string | string[]): Promise<CacheEntry[]> {
+  async getDependentEntries (id: string, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]> {
     /* c8 ignore next 3 */
     if (this.#closed) {
       throw new UserError('Cache is closed.')
@@ -389,12 +402,12 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
 
     prefixes = this.#normalizePrefixes(prefixes)
 
-    const dependentEntries: Map<string, CacheEntry> = new Map()
+    const dependentEntries: Map<string, CacheValueWithAdditionalProperties> = new Map()
     let metadata: string | null = null
 
     for (const prefix of prefixes) {
       const keys = this.#keys.get({ id }, prefix)
-      metadata = await this.#primaryClient.get(keys.metadata)
+      metadata = await this.#primaryClient.get(keys.value)
 
       if (metadata) {
         break
@@ -407,11 +420,11 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     }
 
     const {
-      identifier: { tags, expireAt }
-    } = JSON.parse(metadata) as CacheMetadata
+      metadata: { tags, deleteAt }
+    } = JSON.parse(metadata) as CacheEntry
 
     /* c8 ignore next 3 */
-    if (expireAt < Date.now() / 1000) {
+    if (deleteAt < Date.now() / 1000) {
       return []
     }
 
@@ -426,8 +439,8 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
             const entries = await this.getTag(tag, prefix)
 
             for (const entry of entries) {
-              if (entry.id !== id && this.#areTagsDependent(tags, entry.cacheTags)) {
-                dependentEntries.set(entry.keyPrefix + '|' + entry.id, entry)
+              if (entry.id !== id && this.#areTagsDependent(tags, entry.tags)) {
+                dependentEntries.set(entry.prefix + '|' + entry.id, entry)
               }
             }
           },
@@ -440,7 +453,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     return Array.from(dependentEntries.values())
   }
 
-  createWriteStream (key: CacheKey, value: CacheEntry): Writable {
+  createWriteStream (key: CacheKey, value: CacheValue): Writable {
     const maxSize = this.#maxEntrySize
     const writeData = this.#writeData.bind(this)
     const errorCallback = this.#errorCallback.bind(this)
@@ -528,13 +541,13 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
 
           const pipeline = this.#primaryClient.pipeline()
           if (key.id) {
-            const metadata = await this.#primaryClient.get(keys.metadata)
+            const metadata = await this.#primaryClient.get(keys.value)
 
-            pipeline.del(keys.metadata)
+            pipeline.del(keys.value)
             pipeline.del(keys.body)
 
             if (metadata) {
-              const { identifier } = JSON.parse(metadata) as CacheMetadata
+              const { metadata: identifier } = JSON.parse(metadata) as CacheEntry
 
               pipeline.zrem(keys.variants, identifier.hash)
               pipeline.zrem(keys.request, JSON.stringify(identifier))
@@ -549,17 +562,17 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
 
             // Start iterating the sorted set for the requests
             await this.#iterateVariants<string>(keys.request, prefix, async (raw: string) => {
-              const entry = JSON.parse(raw) as CacheIdentifier
+              const entry = JSON.parse(raw) as CacheMetadata
 
               pipeline.zrem(keys.variants, entry.hash)
               pipeline.zrem(keys.request, raw)
-              pipeline.del(replaceKeyPlaceholder(keys.metadata, entry.id))
+              pipeline.del(replaceKeyPlaceholder(keys.value, entry.id))
               pipeline.del(replaceKeyPlaceholder(keys.body, entry.id))
 
               tags = entry.tags
 
               this.emit('entry:delete', { id: entry.id, prefix })
-              return { expired: entry.expireAt < now }
+              return { expired: entry.deleteAt < now }
             })
 
             await pipeline.exec()
@@ -598,10 +611,10 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       prefixes,
       async prefix => {
         const keys = this.#keys.get({}, prefix)
-        const values = await this.#primaryClient.mget(ids.map(id => replaceKeyPlaceholder(keys.metadata, id)))
+        const values = await this.#primaryClient.mget(ids.map(id => replaceKeyPlaceholder(keys.value, id)))
 
         for (const value of values) {
-          const { id, origin, method, path } = JSON.parse(value!).entry as CacheEntry
+          const { id, origin, method, path } = JSON.parse(value!).metadata as CacheMetadata
           toDelete.push({ id, origin, method, path })
         }
       },
@@ -650,17 +663,14 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
           }
 
           offset += ids.length
-          const membersData = await this.#primaryClient.mget(...ids.map(id => replaceKeyPlaceholder(keys.metadata, id)))
+          const membersData = await this.#primaryClient.mget(...ids.map(id => replaceKeyPlaceholder(keys.value, id)))
 
           for (const member of membersData) {
             if (!member) {
               continue
             }
 
-            const {
-              entry: { id, origin, method, path },
-              identifier: { tags: entryTags }
-            } = JSON.parse(member) as CacheMetadata
+            const { id, origin, method, path, tags: entryTags } = JSON.parse(member).metadata as CacheMetadata
 
             let hasTags = true
             for (const tag of tags) {
@@ -699,7 +709,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
   }
 
   async streamEntries (
-    callback: (entry: CacheEntry) => Promise<unknown> | unknown,
+    callback: (entry: CacheValueWithAdditionalProperties) => Promise<unknown> | unknown,
     prefixes?: string | string[]
   ): Promise<void> {
     /* c8 ignore next 3 */
@@ -730,21 +740,19 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
                     await pMap(
                       identifiers,
                       async identifier => {
-                        const { id, expireAt } = JSON.parse(identifier) as CacheIdentifier
+                        const { id, deleteAt } = JSON.parse(identifier) as CacheMetadata
                         const keys = this.#keys.get({ origin, path, method }, prefix)
 
                         /* c8 ignore next 4 */
-                        if (expireAt < now) {
+                        if (deleteAt < now) {
                           this.#enqueueCleanup(prefix, 'key', keys.request)
                           return
                         }
 
-                        const raw = await this.#primaryClient.get(replaceKeyPlaceholder(keys.metadata, id))
+                        const raw = await this.#primaryClient.get(replaceKeyPlaceholder(keys.value, id))
 
                         if (raw) {
-                          const { identifier, entry: metadata } = JSON.parse(raw) as CacheMetadata
-                          metadata.cacheTags = identifier.tags
-                          await callback(metadata)
+                          await callback(this.#convertToValueWithAdditionalProperties(JSON.parse(raw) as CacheEntry))
                         }
                       },
                       { concurrency: this.#concurrency }
@@ -821,7 +829,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     }
   }
 
-  #getEntryTags (metadata: CacheEntry): string[] {
+  #getEntryTags (metadata: CacheValue): string[] {
     if (!this.#cacheTagsHeader) {
       return []
     }
@@ -848,7 +856,7 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     return true
   }
 
-  async #writeData (rawKey: CacheKey, metadata: CacheEntry, body: string): Promise<void> {
+  async #writeData (rawKey: CacheKey, value: CacheValue, body: string): Promise<void> {
     /* c8 ignore next 3 */
     if (this.#closed) {
       return
@@ -860,17 +868,28 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
 
     try {
       const { headers, id, ...keyParts } = rawKey
-      const expireAt = Math.floor(metadata.deleteAt / 1000)
+      const deleteAt = Math.floor(value.deleteAt / 1000)
       const key = { ...keyParts, id: id ?? this.#generateId(), keyPrefix: this.#prefix }
       const keys = this.#keys.get(key, this.#prefix)
-      const tags = this.#getEntryTags(metadata)
-      const vary = serializeHeaders(metadata.vary)
+      const tags = this.#getEntryTags(value)
+      const vary = serializeHeaders(value.vary)
       const hash = this.#xxhash.h64ToString(JSON.stringify(vary))
       const specificity = Object.keys(vary).length
       // Pad specificity to 4 digits to ensure correct lexicographical order
       const score = specificity.toString().padStart(4, '0')
-      const identifier = { score, id: key.id, specificity, vary, hash, tags, expireAt }
-      const entry = { ...key, ...metadata, cacheTags: tags }
+      const metadata: CacheMetadata = {
+        score,
+        specificity,
+        hash,
+        id: key.id,
+        prefix: this.#prefix,
+        origin: key.origin,
+        method: key.method,
+        path: key.path,
+        vary,
+        tags,
+        deleteAt
+      }
 
       // If there is already an entry with the same vary, do not overwrite - This implements deduplication
       const result = await this.#primaryClient.zadd(keys.variants, 'NX', 0, hash)
@@ -884,9 +903,9 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       pipeline.zadd(keys.routes, 0, `${key.origin}|${key.path}`)
       pipeline.zadd(keys.requests, 0, key.method)
       // IMPORTANT: score must be always be the first key in the identifier since we use ordering by lex order
-      pipeline.zadd(keys.request, 0, JSON.stringify(identifier))
-      pipeline.set(keys.metadata, JSON.stringify({ identifier, entry }), 'EXAT', expireAt)
-      pipeline.set(keys.body, body, 'EXAT', expireAt)
+      pipeline.zadd(keys.request, 0, JSON.stringify(metadata))
+      pipeline.set(keys.value, JSON.stringify({ metadata, value }), 'EXAT', deleteAt)
+      pipeline.set(keys.body, body, 'EXAT', deleteAt)
 
       const tagsKeys: string[] = []
 
@@ -899,13 +918,13 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       // For all the created keys, we need to issue two calls for expiration:
       // one will set it if the key does not exist, the other will update.
       for (const key of [keys.variants, keys.routes, keys.requests, keys.request, keys.tags, ...tagsKeys]) {
-        pipeline.expireat(key, expireAt, 'NX')
-        pipeline.expireat(key, expireAt, 'GT')
+        pipeline.expireat(key, deleteAt, 'NX')
+        pipeline.expireat(key, deleteAt, 'GT')
       }
 
       await pipeline.exec()
 
-      this.emit('entry:write', { id: key.id, entry, prefix: this.#prefix })
+      this.emit('entry:write', { prefix: this.#prefix, id: metadata.id, metadata, value } as AddedCacheEntry)
       /* c8 ignore next 3 */
     } catch (err) {
       this.emit('error', err)
@@ -1095,20 +1114,24 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
       }
 
       // Set
-      if (channel === channels.set && components[1] === 'metadata') {
-        const metadataRaw = await this.#primaryClient.get(message)
+      if (channel === channels.set && components[1] === 'value') {
+        const entry = await this.#primaryClient.get(message)
 
         /* c8 ignore next 3 */
-        if (!metadataRaw) {
+        if (!entry) {
           return
         }
 
-        const { entry, identifier } = JSON.parse(metadataRaw) as CacheMetadata
-        entry.cacheTags = identifier.tags
-        this.emit('subscription:entry:add', { id: entry.id, prefix: components[0], entry })
+        const { metadata, value } = JSON.parse(entry) as CacheEntry
+        this.emit('subscription:entry:add', {
+          prefix: components[0],
+          id: metadata.id,
+          metadata,
+          value
+        } as AddedCacheEntry)
         // Delete or Expired
-      } else if ((channel === channels.del || channel === channels.expired) && components[1] === 'metadata') {
-        this.emit('subscription:entry:delete', { id: components[2], prefix: components[0] })
+      } else if ((channel === channels.del || channel === channels.expired) && components[1] === 'value') {
+        this.emit('subscription:entry:delete', { id: components[2], prefix: components[0] } as RemovedCacheEntry)
       }
       /* c8 ignore next 3 */
     } catch (err) {
@@ -1157,5 +1180,12 @@ export class Cache extends EventEmitter implements CacheStore, CacheManager {
     if (['reconnecting', 'connecting', 'connect', 'ready'].includes(client.status)) {
       await client.disconnect()
     }
+  }
+
+  #convertToValueWithAdditionalProperties (entry: CacheEntry): CacheValueWithAdditionalProperties {
+    const { metadata, value } = entry
+    const { id, prefix, origin, method, path, tags } = metadata
+
+    return { id, prefix, origin, method, path, tags, ...value }
   }
 }

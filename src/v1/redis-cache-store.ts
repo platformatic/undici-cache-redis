@@ -4,13 +4,13 @@ import { Writable } from 'node:stream'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type CacheHandler from 'undici/types/cache-interceptor.js'
 import type {
-  CacheEntry,
-  CacheEntryWithBody,
   CacheKey,
   CacheManager,
   CacheManagerOptions,
   CacheStore,
-  CacheStoreOptions
+  CacheStoreOptions,
+  CacheValueWithAdditionalProperties,
+  CacheValueWithBody
 } from '../types.ts'
 import { ensureArray, getKeyspaceEventsChannels } from '../utils.ts'
 import { TrackingCache, type CachedMetadata } from './tracking-cache.ts'
@@ -44,7 +44,7 @@ export interface ParsedRedisMetadataValue {
 export interface Context<
   Key extends CacheKey = CacheKey,
   Metadata extends Partial<CachedMetadata> = CachedMetadata,
-  Result extends Partial<CacheEntryWithBody> = CacheEntryWithBody
+  Result extends Partial<CacheValueWithBody> = CacheValueWithBody
 > {
   redis: Redis
   trackingCache?: TrackingCache<Key, Metadata, Result> | undefined
@@ -52,9 +52,9 @@ export interface Context<
   keyPrefix: string
 }
 
-export interface FoundCacheEntry {
+export interface FoundCacheValue {
   metadata: ParsedRedisMetadataValue
-  value: CacheEntryWithBody
+  value: CacheValueWithBody
 }
 
 export class RedisCacheStore extends EventEmitter implements CacheStore {
@@ -145,7 +145,7 @@ export class RedisCacheStore extends EventEmitter implements CacheStore {
     return this.#redis
   }
 
-  async get (key: CacheKey): Promise<CacheEntryWithBody | undefined> {
+  async get (key: CacheKey): Promise<CacheValueWithBody | undefined> {
     /* c8 ignore next 3 */
     if (typeof key !== 'object') {
       throw new TypeError(`expected key to be object, got ${typeof key}`)
@@ -156,10 +156,10 @@ export class RedisCacheStore extends EventEmitter implements CacheStore {
       if (result !== undefined) return result
     }
 
-    const cacheEntry = await this.findCacheByKey(key)
-    if (cacheEntry === undefined) return undefined
+    const cacheValue = await this.findCacheByKey(key)
+    if (cacheValue === undefined) return undefined
 
-    const { metadata, value } = cacheEntry
+    const { metadata, value } = cacheValue
 
     if (this.#trackingCache) {
       const parsedMetadataKey = parseMetadataKey(metadata.key)
@@ -169,7 +169,7 @@ export class RedisCacheStore extends EventEmitter implements CacheStore {
     return value
   }
 
-  async findCacheByKey (key: CacheKey): Promise<FoundCacheEntry | undefined> {
+  async findCacheByKey (key: CacheKey): Promise<FoundCacheValue | undefined> {
     let metadataValue: ParsedRedisMetadataValue | undefined
     let valueString: string | null
 
@@ -216,7 +216,7 @@ export class RedisCacheStore extends EventEmitter implements CacheStore {
     const result = {
       ...value,
       body: parseBufferArray(value.body)
-    } as unknown as CacheEntryWithBody
+    } as unknown as CacheValueWithBody
 
     if (value.headers.etag) {
       result.etag = value.headers.etag as string
@@ -229,7 +229,7 @@ export class RedisCacheStore extends EventEmitter implements CacheStore {
     return { metadata: metadataValue, value: result }
   }
 
-  createWriteStream (key: CacheKey, value: CacheEntry): Writable {
+  createWriteStream (key: CacheKey, value: CacheValueWithBody): Writable {
     /* c8 ignore next 3 */
     if (typeof key !== 'object') {
       throw new TypeError(`expected key to be object, got ${typeof key}`)
@@ -636,7 +636,7 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
   #closed: boolean = false
   #redisClientOpts: RedisOptions
   #abortController: AbortController
-  #context: Context<CacheKey, RedisValue | ParsedRedisMetadataValue | CachedMetadata, CacheEntryWithBody>
+  #context: Context<CacheKey, RedisValue | ParsedRedisMetadataValue | CachedMetadata, CacheValueWithBody>
   #clientConfigKeyspaceEventNotify: boolean
 
   constructor (opts: Partial<CacheManagerOptions> | undefined = {}) {
@@ -685,7 +685,7 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
   }
 
   async streamEntries (
-    callback: (entry: CacheEntry) => Promise<unknown> | unknown,
+    callback: (entry: CacheValueWithAdditionalProperties) => Promise<unknown> | unknown,
     keyPrefix: string | string[] = ''
   ): Promise<void> {
     for (const prefix of ensureArray(keyPrefix)) {
@@ -738,16 +738,16 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
 
           // A new cache entry was added
           if (channel === channels.hset) {
-            const cacheEntry = await this.#getEntryByIdKey(key, keyPrefix)
-            if (cacheEntry !== undefined) {
-              this.emit('add-entry', cacheEntry)
+            const cacheValue = await this.#getEntryByIdKey(key, keyPrefix)
+            if (cacheValue !== undefined) {
+              this.emit('add-entry', cacheValue)
             }
             return
           }
 
           // A cache entry was deleted
           if (channel === channels.del || channel === channels.expired) {
-            this.emit('delete-entry', { id, keyPrefix })
+            this.emit('delete-entry', { id, prefix: keyPrefix })
           }
           return
         }
@@ -778,7 +778,7 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
     return Buffer.from(base64Body, 'base64').toString('utf8')
   }
 
-  async getDependentEntries (id: string, keyPrefix: string = ''): Promise<CacheEntry[]> {
+  async getDependentEntries (id: string, keyPrefix: string = ''): Promise<CacheValueWithAdditionalProperties[]> {
     const { metadataKey } = await this.#redis.hgetall(`${keyPrefix}ids:${id}`)
     /* c8 ignore next */
     if (!metadataKey) return []
@@ -791,7 +791,7 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
     /* c8 ignore next */
     if (tags.length === 0) return []
 
-    const entries: CacheEntry[] = []
+    const entries: CacheValueWithAdditionalProperties[] = []
     const pattern = `*cache-tags:*${tags.sort().join('*:*')}:*`
 
     const fullTagsKey = addKeyPrefix(tagsKey, keyPrefix)
@@ -836,7 +836,10 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
     await Promise.all(promises)
   }
 
-  async #getEntryByIdKey (idKey: string, keyPrefix: string = ''): Promise<CacheEntry | undefined> {
+  async #getEntryByIdKey (
+    idKey: string,
+    keyPrefix: string = ''
+  ): Promise<CacheValueWithAdditionalProperties | undefined> {
     const { metadataKey } = await this.#redis.hgetall(addKeyPrefix(idKey, keyPrefix))
     /* c8 ignore next */
     if (!metadataKey) return
@@ -844,7 +847,10 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
     return this.#getEntryByMetadataKey(metadataKey, keyPrefix)
   }
 
-  async #getEntryByTagsKey (tagsKey: string, keyPrefix: string = ''): Promise<CacheEntry | undefined> {
+  async #getEntryByTagsKey (
+    tagsKey: string,
+    keyPrefix: string = ''
+  ): Promise<CacheValueWithAdditionalProperties | undefined> {
     const { metadataKey } = await this.#redis.hgetall(addKeyPrefix(tagsKey, keyPrefix))
     /* c8 ignore next */
     if (!metadataKey) return
@@ -852,7 +858,10 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
     return this.#getEntryByMetadataKey(metadataKey, keyPrefix)
   }
 
-  async #getEntryByMetadataKey (metadataKey: string, keyPrefix: string = ''): Promise<CacheEntry | undefined> {
+  async #getEntryByMetadataKey (
+    metadataKey: string,
+    keyPrefix: string = ''
+  ): Promise<CacheValueWithAdditionalProperties | undefined> {
     const { id } = parseMetadataKey(metadataKey)
 
     const { valueKey, tagsKey } = await this.#redis.hgetall(addKeyPrefix(metadataKey, keyPrefix))
@@ -874,14 +883,14 @@ export class RedisCacheManager extends EventEmitter implements CacheManager {
 
     return {
       id,
-      keyPrefix,
+      prefix: keyPrefix,
       origin: parsedMetaKey.origin,
       path: parsedMetaKey.path,
       method: parsedMetaKey.method,
       statusCode: parsedValue.statusCode,
       statusMessage: parsedValue.statusMessage,
       headers: parsedValue.headers,
-      cacheTags,
+      tags: cacheTags,
       cachedAt: parsedValue.cachedAt,
       staleAt: parsedValue.staleAt,
       deleteAt: parsedValue.deleteAt

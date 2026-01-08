@@ -1,24 +1,25 @@
 import { type Redis, type RedisOptions } from 'iovalkey'
-import { type EventEmitter, type Readable } from 'node:stream'
+import { type EventEmitter } from 'node:stream'
 import type CacheHandler from 'undici/types/cache-interceptor.d.ts'
 
 export interface CacheKey extends CacheHandler.default.CacheKey {
   id?: string
 }
 
-export interface CacheEntry extends CacheHandler.default.CacheValue {
+export type CacheValue = CacheHandler.default.CacheValue
+
+export interface CacheValueAdditionalProperties {
   id: string
-  keyPrefix: string
+  prefix: string
   origin: string
   method: string
   path: string
-  cacheTags: string[]
+  tags: string[]
 }
 
-export interface CacheEntryWithBody extends CacheEntry {
-  cacheControlDirectives: CacheHandler.default.CacheControlDirectives
-  body: undefined | Readable | Iterable<Buffer> | Buffer | Iterable<string> | string
-}
+export type CacheValueWithAdditionalProperties = CacheValue & CacheValueAdditionalProperties
+export type CacheValueWithBody = CacheHandler.default.GetResult // This is equivalent to CacheValue with a body
+export type CacheValueComplete = CacheValueWithBody & CacheValueAdditionalProperties
 
 export interface CacheStoreOptions {
   prefix?: string
@@ -43,7 +44,7 @@ export interface CacheStore extends CacheHandler.default.CacheStore, EventEmitte
   version: string
   client: Redis
 
-  get (key: CacheKey): Promise<CacheEntryWithBody | undefined>
+  get (key: CacheKey): Promise<CacheValueWithBody | undefined>
   deleteKeys (keys: CacheKey[]): Promise<void>
   deleteTags (tags: Array<string | string[]>): Promise<void>
   close (): Promise<void>
@@ -54,12 +55,12 @@ export interface CacheManager extends EventEmitter {
   client: Redis
 
   streamEntries (
-    callback: (entry: CacheEntry) => Promise<unknown> | unknown,
+    callback: (entry: CacheValueWithAdditionalProperties) => Promise<unknown> | unknown,
     keyPrefix: string | string[]
   ): Promise<void>
   subscribe (): Promise<void>
   getResponseById (id: string, keyPrefix: string): Promise<string | null>
-  getDependentEntries (id: string, keyPrefix: string): Promise<CacheEntry[]>
+  getDependentEntries (id: string, keyPrefix: string): Promise<CacheValueWithAdditionalProperties[]>
   deleteIds (ids: string[], keyPrefix: string): Promise<void>
   close (): Promise<void>
 }

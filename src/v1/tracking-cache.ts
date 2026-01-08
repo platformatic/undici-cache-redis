@@ -1,25 +1,25 @@
 import lruMap from 'lru_map'
-import type { CacheEntry, CacheEntryWithBody, CacheKey, CacheStoreOptions } from '../types.ts'
+import type { CacheKey, CacheStoreOptions, CacheValue, CacheValueWithBody } from '../types.ts'
 import type { ParsedRedisMetadataValue, RedisValue } from './redis-cache-store.ts'
 
-export interface TrackingCacheEntry<M, R> {
+export interface TrackingCacheValue<M, R> {
   metadata: M
   result: R
   size: number
 }
 
-export interface TrackingCacheEntryWithKey<M, R, K> extends TrackingCacheEntry<M, R> {
+export interface TrackingCacheValueWithKey<M, R, K> extends TrackingCacheValue<M, R> {
   key: K
 }
 
-export type CachedMetadata = RedisValue | ParsedRedisMetadataValue | CacheEntry
+export type CachedMetadata = RedisValue | ParsedRedisMetadataValue | CacheValue
 
 export class TrackingCache<
   Key extends CacheKey = CacheKey,
   Metadata extends Partial<CachedMetadata> = CachedMetadata,
-  Result extends Partial<CacheEntryWithBody> = CacheEntryWithBody
+  Result extends Partial<CacheValueWithBody> = CacheValueWithBody
 > {
-  #data: lruMap.LRUMap<string, Map<string, TrackingCacheEntry<Metadata, Result>>>
+  #data: lruMap.LRUMap<string, Map<string, TrackingCacheValue<Metadata, Result>>>
   #maxCount
   #maxSize
   #count = 0
@@ -87,14 +87,14 @@ export class TrackingCache<
     }
   }
 
-  #findMatchingEntry (key: Key): TrackingCacheEntryWithKey<Metadata, Result, Key> | undefined {
+  #findMatchingEntry (key: Key): TrackingCacheValueWithKey<Metadata, Result, Key> | undefined {
     const trackingMetadataKey = serializeTackingMetadataKey(key)
     const entries = this.#data.get(trackingMetadataKey)
     if (entries === undefined) return undefined
 
     for (const [id, entry] of entries.entries()) {
       let matches = true
-      const vary = (entry.metadata as CacheEntry).vary as Record<string, string | null> | undefined
+      const vary = (entry.metadata as CacheValue).vary as Record<string, string | null> | undefined
 
       if (vary) {
         const headers = key.headers || {}

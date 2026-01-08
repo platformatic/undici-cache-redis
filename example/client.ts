@@ -303,7 +303,7 @@ async function demonstrateCaching (): Promise<void> {
         sampleEntries.push({
           id: entry.id,
           path: entry.path,
-          tags: entry.cacheTags,
+          tags: entry.tags,
           statusCode: entry.statusCode
         })
       }

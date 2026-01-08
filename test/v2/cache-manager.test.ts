@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { Client, interceptors } from 'undici'
-import type { CacheEntry } from '../../src/types.ts'
+import type { CacheValueWithAdditionalProperties } from '../../src/types.ts'
 import { createManager, createStore, preparePrefix, setVersion, waitForEvents } from '../helper.ts'
 
 setVersion('2.0.0')
@@ -84,7 +84,7 @@ test('invalidates response from cache manager', async t => {
     strictEqual(headers.age, '1')
   }
 
-  const foundEntries: CacheEntry[] = []
+  const foundEntries: CacheValueWithAdditionalProperties[] = []
   await manager.streamEntries(entry => foundEntries.push(entry), prefix)
   strictEqual(foundEntries.length, 1)
 

@@ -91,8 +91,8 @@ const manager = createManager({ prefix: 'my-app:cache' })
 // Subscribe to cache events
 await manager.subscribe()
 
-manager.on('subscription:entry:add', ({ entry }) => {
-  console.log('Cache entry added:', entry.path, entry.cacheTags)
+manager.on('subscription:entry:add', ({ id, metadata, value }) => {
+  console.log('Cache entry added:', metadata.path, metadata.tags)
 })
 
 manager.on('subscription:entry:delete', ({ id, prefix }) => {
@@ -101,7 +101,7 @@ manager.on('subscription:entry:delete', ({ id, prefix }) => {
 
 // Stream through all cache entries
 await manager.streamEntries(entry => {
-  console.log(`Entry: ${entry.path}, Tags: [${entry.cacheTags.join(', ')}]`)
+  console.log(`Entry: ${entry.path}, Tags: [${entry.tags.join(', ')}]`)
 })
 
 // Get entries by tag
@@ -145,6 +145,18 @@ interface CacheOptions {
 
   // Concurrency for parallel operations (default: 10)
   concurrency?: number
+
+  // Enable/disable client-side tracking cache (default: true)
+  tracking?: boolean
+
+  // Configure client-side tracking options (default: true)
+  clientConfigTracking?: boolean
+
+  // Maximum size in bytes for tracking cache
+  maxSize?: number
+
+  // Maximum number of entries in tracking cache
+  maxCount?: number
 
   // Header name to read cache tags from responses
   cacheTagsHeader?: string
@@ -385,24 +397,24 @@ All sorted sets in v2 are auto-cleaning:
 
 **Store Methods:**
 
-- `get(key: CacheKey, prefixes?: string | string[]): Promise<CacheEntryWithBody | undefined>` - Retrieve cached response with body
-- `get(key: CacheKey, prefixes: string | string[] | undefined, includeBody: false): Promise<CacheEntry | undefined>` - Retrieve cached response metadata only
-- `getKeys(keys: CacheKey[], prefixes?: string | string[]): Promise<CacheEntryWithBody[]>` - Get multiple cache entries efficiently
-- `createWriteStream(key: CacheKey, value: CacheEntry): Writable` - Create write stream for caching
+- `get(key: CacheKey, prefixes?: string | string[]): Promise<CacheValueWithBody | undefined>` - Retrieve cached response with body
+- `get(key: CacheKey, prefixes: string | string[] | undefined, includeBody: false): Promise<CacheValueWithAdditionalProperties | undefined>` - Retrieve cached response metadata only
+- `getKeys(keys: Iterable<CacheKey>, prefixes?: string | string[]): Promise<CacheValueWithBody[]>` - Get multiple cache entries efficiently
+- `createWriteStream(key: CacheKey, value: CacheValue): Writable` - Create write stream for caching
 - `delete(key: CacheKey, prefixes?: string | string[]): Promise<void>` - Delete all cache entries for a route (all methods)
-- `deleteKeys(keys: CacheKey[], prefixes?: string | string[]): Promise<void>` - Delete specific cache entries
+- `deleteKeys(keys: Iterable<CacheKey>, prefixes?: string | string[]): Promise<void>` - Delete specific cache entries
 - `deleteTag(tags: string | string[], prefixes?: string | string[]): Promise<void>` - Delete entries matching ALL specified tags
 - `deleteTags(tags: Array<string | string[]>, prefixes?: string | string[]): Promise<void>` - Delete entries for each tag/tag combination
 - `close(): Promise<void>` - Close Redis connections
 
 **Manager Methods:**
 
-- `streamEntries(callback: (entry: CacheEntry) => unknown, prefixes?: string | string[]): Promise<void>` - Stream all cache entries
+- `streamEntries(callback: (entry: CacheValueWithAdditionalProperties) => unknown | Promise<unknown>, prefixes?: string | string[]): Promise<void>` - Stream all cache entries
 - `subscribe(prefixes?: string | string[]): Promise<void>` - Subscribe to cache events via Redis keyspace notifications
-- `getTag(tag: string, prefixes?: string | string[]): Promise<CacheEntry[]>` - Get all entries with a specific tag
-- `getTags(tags: Array<string | string[]>, prefixes?: string | string[]): Promise<CacheEntry[]>` - Get entries for multiple tags
+- `getTag(tag: string, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]>` - Get all entries with a specific tag
+- `getTags(tags: Array<string | string[]>, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]>` - Get entries for multiple tags
 - `getResponseById(id: string, prefixes?: string | string[]): Promise<string | null>` - Get response body by entry ID
-- `getDependentEntries(id: string, prefixes?: string | string[]): Promise<CacheEntry[]>` - Get entries sharing cache tags with specified entry
+- `getDependentEntries(id: string, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]>` - Get entries sharing cache tags with specified entry
 - `deleteIds(ids: string[], prefixes?: string | string[]): Promise<void>` - Delete entries by IDs
 
 **Properties:**
@@ -416,7 +428,7 @@ All sorted sets in v2 are auto-cleaning:
 **Store Events:**
 
 - `entry:write` - Emitted when a cache entry is written
-  - Payload: `{ id: string, entry: CacheEntry, prefix: string }`
+  - Payload: `{ prefix: string, id: string, metadata: CacheMetadata, value: CacheValue }`
 - `entry:delete` - Emitted when a cache entry is deleted
   - Payload: `{ id: string, prefix: string }`
 - `tag:delete` - Emitted when a tag is deleted
@@ -425,9 +437,16 @@ All sorted sets in v2 are auto-cleaning:
 **Manager Events (via subscription):**
 
 - `subscription:entry:add` - Emitted when a cache entry is added (via Redis keyspace events)
-  - Payload: `{ id: string, prefix: string, entry: CacheEntry }`
+  - Payload: `{ prefix: string, id: string, metadata: CacheMetadata, value: CacheValue }`
 - `subscription:entry:delete` - Emitted when a cache entry is deleted (via Redis keyspace events)
   - Payload: `{ id: string, prefix: string }`
+
+**Tracking Events:**
+
+- `tracking:add` - Emitted when an entry is added to the tracking cache
+  - Payload: `{ prefix: string, origin: string, path: string, method: string, headers: Record<string, string> }`
+- `tracking:delete` - Emitted when an entry is deleted from the tracking cache
+  - Payload: `{ prefix: string, origin: string, path: string, method: string }`
 
 **System Events:**
 
@@ -500,8 +519,8 @@ const store = createStore({
 })
 
 // Listen to cache events
-store.on('entry:write', ({ id, entry }) => {
-  console.log('Cached:', entry.origin + entry.path)
+store.on('entry:write', ({ id, metadata, value }) => {
+  console.log('Cached:', metadata.origin + metadata.path)
 })
 
 store.on('entry:delete', ({ id, prefix }) => {
@@ -511,8 +530,8 @@ store.on('entry:delete', ({ id, prefix }) => {
 // Enable subscription for real-time monitoring
 await store.subscribe()
 
-store.on('subscription:entry:add', ({ entry }) => {
-  console.log('Entry added (via subscription):', entry.path)
+store.on('subscription:entry:add', ({ id, metadata, value }) => {
+  console.log('Entry added (via subscription):', metadata.path)
 })
 ```
 
@@ -583,8 +602,8 @@ const cache = createStore({
 await cache.subscribe()
 
 // Updated event names
-cache.on('subscription:entry:add', ({ entry }) => {
-  console.log('Added:', entry.id)
+cache.on('subscription:entry:add', ({ id, metadata, value }) => {
+  console.log('Added:', id)
 })
 
 // Simplified API - no trailing separator
