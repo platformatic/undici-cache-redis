@@ -15,11 +15,25 @@ beforeEach(async (t) => {
   await client.quit()
 })
 
+/**
+ * Creates a deferred promise that can be resolved/rejected externally
+ * @returns {{ promise: Promise<void>, resolve: () => void, reject: (err: Error) => void }}
+ */
+function createDeferred () {
+  let resolve, reject
+  const promise = new Promise((_resolve, _reject) => {
+    resolve = _resolve
+    reject = _reject
+  })
+  return { promise, resolve, reject }
+}
+
 for (const maxAgeHeader of ['s-maxage', 'max-age']) {
   test(`stale-while-revalidate w/ ${maxAgeHeader}`, async (t) => {
     const store = new RedisCacheStore()
     let requestsToOrigin = 0
     let revalidationRequests = 0
+    const revalidationDeferred = createDeferred()
     const server = createServer((req, res) => {
       if (req.headers['if-none-match']) {
         revalidationRequests++
@@ -29,6 +43,7 @@ for (const maxAgeHeader of ['s-maxage', 'max-age']) {
 
         res.statusCode = 304
         res.end()
+        revalidationDeferred.resolve()
       } else {
         requestsToOrigin++
         res.setHeader('cache-control', 'public, max-age=1, stale-while-revalidate=4')
@@ -93,9 +108,14 @@ for (const maxAgeHeader of ['s-maxage', 'max-age']) {
         method: 'GET'
       })
       t.assert.equal(requestsToOrigin, 1)
-      t.assert.strictEqual(revalidationRequests, 1)
       t.assert.equal(response.statusCode, 200)
       t.assert.equal(await response.body.text(), 'asd')
+
+      // Wait for the background revalidation request to reach the server
+      // stale-while-revalidate serves the stale response immediately
+      // and triggers a background revalidation request asynchronously
+      await revalidationDeferred.promise
+      t.assert.strictEqual(revalidationRequests, 1)
     }
 
     await sleep(6000)
