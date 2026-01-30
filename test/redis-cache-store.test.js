@@ -1,20 +1,41 @@
-// @ts-check
-'use strict'
+// prettier-ignore-file
 
-const { describe, test } = require('node:test')
-const { strictEqual, deepStrictEqual, notEqual, equal, fail, ok } = require('node:assert')
-const { Readable } = require('node:stream')
-const { once } = require('node:events')
-const { RedisCacheStore } = require('../lib/redis-cache-store')
-const { getAllKeys, cleanValkey } = require('./helper.js')
-const { setTimeout: sleep } = require('node:timers/promises')
+/*
+  This test works as a compliance and integration suite for cache stores.
+  It was adapted from v1 with minimal changes.
+  Do not translate into Typescript and do not remove it.
+*/
 
-cacheStoreTests(RedisCacheStore)
+import { Redis } from 'iovalkey'
+import { deepStrictEqual, equal, fail, notEqual, ok, strictEqual } from 'node:assert'
+import { once } from 'node:events'
+import { Readable } from 'node:stream'
+import { describe, test } from 'node:test'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { createStore as _createStore } from '../src/index.ts'
 
-function cacheStoreTests (CacheStore) {
-  describe(CacheStore.prototype.constructor.name, () => {
+const redisOptions = { port: 7001 }
+
+describe('1.0.0', () => {
+  cacheStoreTests('1.0.0')
+})
+
+describe('2.0.0', () => {
+  cacheStoreTests('2.0.0')
+})
+
+function cacheStoreTests (version) {
+  function createStore (opts) {
+    opts ??= {}
+    opts.clientOpts ??= {}
+
+    Object.assign(opts.clientOpts, redisOptions)
+    return _createStore(opts, version)
+  }
+
+  describe('integration', () => {
     test('matches interface', async (t) => {
-      const store = new CacheStore()
+      const store = createStore()
 
       t.after(async () => {
         await store.close()
@@ -48,7 +69,7 @@ function cacheStoreTests (CacheStore) {
       /**
        * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
-      const store = new CacheStore({
+      const store = createStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
         },
@@ -141,7 +162,7 @@ function cacheStoreTests (CacheStore) {
       /**
        * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
-      const store = new CacheStore({
+      const store = createStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
         },
@@ -169,6 +190,8 @@ function cacheStoreTests (CacheStore) {
     })
 
     test('a stale request is overwritten', async (t) => {
+      await cleanValkey()
+
       /**
        * @type {import('../../types/cache-interceptor.d.ts').default.CacheKey}
        */
@@ -195,7 +218,7 @@ function cacheStoreTests (CacheStore) {
 
       const body = [Buffer.from('asd'), Buffer.from('123')]
 
-      const store = new CacheStore()
+      const store = createStore()
 
       t.after(async () => {
         await store.close()
@@ -253,7 +276,7 @@ function cacheStoreTests (CacheStore) {
       }
     })
 
-    test('doesn\'t return response past deletedAt', async (t) => {
+    test("doesn't return response past deletedAt", async (t) => {
       await cleanValkey()
 
       const request = {
@@ -274,7 +297,7 @@ function cacheStoreTests (CacheStore) {
       /**
        * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
-      const store = new CacheStore({
+      const store = createStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
         },
@@ -323,7 +346,7 @@ function cacheStoreTests (CacheStore) {
       /**
        * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
-      const store = new CacheStore({
+      const store = createStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
         },
@@ -388,7 +411,7 @@ function cacheStoreTests (CacheStore) {
       /**
        * @type {import('../lib/internal-types.d.ts').CacheStore}
        */
-      const store = new CacheStore({
+      const store = createStore({
         clientOpts: {
           keyPrefix: `${crypto.randomUUID()}:`
         },
@@ -437,7 +460,7 @@ function cacheStoreTests (CacheStore) {
       deleteAt: Date.now() + 20000
     }
 
-    const store = new CacheStore({
+    const store = createStore({
       clientOpts: {
         keyPrefix: `${crypto.randomUUID()}:`
       },
@@ -476,7 +499,7 @@ function cacheStoreTests (CacheStore) {
       deleteAt: Date.now() + 20000
     }
 
-    const store = new CacheStore({
+    const store = createStore({
       clientOpts: {
         keyPrefix: `${crypto.randomUUID()}:`
       },
@@ -498,16 +521,14 @@ function cacheStoreTests (CacheStore) {
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 3)
+      strictEqual(keys.length, version === '1.0.0' ? 3 : 6)
     }
 
-    await store.deleteKeys([
-      { method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }
-    ])
+    await store.deleteKeys([{ method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }])
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 0)
+      strictEqual(keys.length, version === '1.0.0' ? 0 : 2)
     }
   })
 
@@ -529,7 +550,7 @@ function cacheStoreTests (CacheStore) {
       deleteAt: Date.now() + 20000
     }
 
-    const store = new CacheStore({
+    const store = createStore({
       clientOpts: {
         keyPrefix: `${crypto.randomUUID()}:`
       },
@@ -551,23 +572,21 @@ function cacheStoreTests (CacheStore) {
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 3)
+      strictEqual(keys.length, version === '1.0.0' ? 3 : 6)
     }
 
-    await store.deleteKeys([
-      { method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }
-    ])
+    await store.deleteKeys([{ method: 'GET', origin: 'http://test-origin-1', path: '/foo?bar=baz' }])
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 0)
+      strictEqual(keys.length, version === '1.0.0' ? 0 : 2)
     }
   })
 
   test('invalidates cache by combined cache tag', async (t) => {
     await cleanValkey()
 
-    const store = new CacheStore({
+    const store = createStore({
       cacheTagsHeader: 'cache-tag',
       clientOpts: {
         keyPrefix: `${crypto.randomUUID()}:`
@@ -667,26 +686,28 @@ function cacheStoreTests (CacheStore) {
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 12)
+      strictEqual(keys.length, version === '1.0.0' ? 12 : 20)
     }
 
     await store.deleteTags([['tag1', 'tag2']])
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 4)
+      strictEqual(keys.length, version === '1.0.0' ? 4 : 11)
 
-      const tagsKeys = keys.filter(key => key.includes('cache-tags'))
-      strictEqual(tagsKeys.length, 1)
+      if (version === '1.0.0') {
+        const tagsKeys = keys.filter(key => key.includes('cache-tags'))
+        strictEqual(tagsKeys.length, 1)
 
-      ok(tagsKeys[0].includes('tag1:tag3'))
+        ok(tagsKeys[0].includes('tag1:tag3'))
+      }
     }
   })
 
   test('invalidates cache by cache tag', async (t) => {
     await cleanValkey()
 
-    const store = new CacheStore({
+    const store = createStore({
       cacheTagsHeader: 'cache-tag',
       clientOpts: {
         keyPrefix: `${crypto.randomUUID()}:`
@@ -786,14 +807,14 @@ function cacheStoreTests (CacheStore) {
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 12)
+      strictEqual(keys.length, version === '1.0.0' ? 12 : 21)
     }
 
     await store.deleteTags(['tag1', 'tag4'])
 
     {
       const keys = await getAllKeys()
-      strictEqual(keys.length, 0)
+      strictEqual(keys.length, version === '1.0.0' ? 0 : 5)
     }
   })
 
@@ -820,7 +841,7 @@ function cacheStoreTests (CacheStore) {
     /**
      * @type {import('../lib/internal-types.d.ts').CacheStore}
      */
-    const store = new CacheStore({
+    const store = createStore({
       clientOpts: {
         keyPrefix: `${crypto.randomUUID()}:`
       },
@@ -836,12 +857,14 @@ function cacheStoreTests (CacheStore) {
     // Sanity check
     equal(await store.get(request), undefined)
 
+    const writePromise = once(store, version === '1.0.0' ? 'write' : 'entry:write')
+
     // Write the response to the store
     const writeStream = store.createWriteStream(request, requestValue)
     notEqual(writeStream, undefined)
     writeResponse(writeStream, requestBody)
 
-    const [entry] = await once(store, 'write')
+    const [entry] = await writePromise
     strictEqual(entry.id, 'custom-id')
   })
 }
@@ -878,8 +901,19 @@ async function readResponse ({ body: src, ...response }) {
 
   await once(stream, 'end')
 
-  return {
-    ...response,
-    body
-  }
+  return { ...response, body }
+}
+
+async function cleanValkey () {
+  const redis = new Redis(redisOptions)
+  await redis.flushdb()
+  redis.quit()
+}
+
+async function getAllKeys () {
+  const redis = new Redis(redisOptions)
+  const keys = await redis.keys('*')
+  redis.quit()
+
+  return keys
 }

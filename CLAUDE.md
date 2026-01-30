@@ -8,17 +8,19 @@ This is `undici-cache-redis`, a Redis-backed cache store for Undici's cache inte
 
 ### Core Architecture
 
-- **RedisCacheStore** (lib/redis-cache-store.js:46): Main cache store implementation that implements Undici's cache store interface
-- **RedisCacheManager** (lib/redis-cache-store.js:665): Management interface for cache operations and monitoring
-- **TrackingCache** (lib/tracking-cache.js:5): In-memory LRU cache for client-side tracking to reduce Redis round trips
+- **RedisCacheStore** (src/v1/redis-cache-store.ts): Main cache store implementation that implements Undici's cache store interface
+- **RedisCacheManager** (src/v1/redis-cache-store.ts): Management interface for cache operations and monitoring
+- **TrackingCache** (src/v1/tracking-cache.ts): In-memory LRU cache for client-side tracking to reduce Redis round trips
 
 The architecture uses a dual-layer caching approach:
+
 1. Optional client-side tracking cache (TrackingCache) for frequently accessed items
 2. Persistent Redis storage for the main cache data
 
 ### Key Storage Patterns
 
 The cache uses structured Redis keys:
+
 - `metadata:{origin}:{path}:{method}:{id}` - Cache entry metadata
 - `values:{id}` - Actual cached response data
 - `ids:{id}` - ID-to-metadata mapping
@@ -27,6 +29,7 @@ The cache uses structured Redis keys:
 ## Development Commands
 
 ### Testing
+
 ```bash
 # Run all tests (requires Redis/Valkey running)
 npm test
@@ -39,12 +42,14 @@ npm run test:typescript
 ```
 
 ### Benchmarking
+
 ```bash
 # Run the complete benchmark suite
 npm run bench
 ```
 
 The benchmark script automatically:
+
 - Checks prerequisites (Node.js, dependencies, Redis/Valkey connection)
 - Starts Redis/Valkey if needed: `npm run valkey`
 - Starts the backend server if not already running
@@ -53,17 +58,19 @@ The benchmark script automatically:
 - Cleans up all processes when finished
 
 **Manual benchmarking** (for debugging):
+
 ```bash
 # Start backend server manually
-node example/server.js
+node example/server.ts
 
 # Run individual benchmark scenarios
-node benchmarks/bench-proxy-no-cache.js      # No caching baseline
-node benchmarks/bench-proxy-memory-cache.js  # In-memory caching  
-node benchmarks/bench-proxy-redis-cache.js   # Redis/Valkey caching
+node benchmarks/bench-proxy-no-cache.ts      # No caching baseline
+node benchmarks/bench-proxy-memory-cache.ts  # In-memory caching
+node benchmarks/bench-proxy-redis-cache.ts   # Redis/Valkey caching
 ```
 
 ### Code Quality
+
 ```bash
 # Run ESLint
 npm run lint
@@ -75,22 +82,27 @@ npm run lint:fix
 ## Testing Setup
 
 Tests require a running Redis/Valkey instance. The project includes Docker Compose configurations:
+
 - `plain-valkey` on port 6379 (default test target)
 - `preconfigured-valkey` on port 6389 (with custom config)
 - `misconfigured-valkey` on port 6399 (for testing error scenarios)
 
-Test helper functions are available in test/helper.js:8 for Redis cleanup and data compression utilities.
+Test helper functions are available in test/helper.ts for Redis cleanup and data compression utilities.
 
 ## Code Patterns
 
 ### Error Handling
+
 All Redis operations include error callbacks that can be customized via `opts.errorCallback`. Default behavior logs errors to console.
 
 ### Client-Side Tracking
+
 When enabled (default), uses Redis client-side caching with key invalidation notifications. Can be disabled by setting `tracking: false` in options.
 
 ### Cache Tagging
+
 Supports cache invalidation by tags via configurable header (set via `cacheTagsHeader` option). Tags are stored in separate Redis keys for efficient bulk invalidation.
 
 ### Key Serialization
+
 All cache keys are URL-encoded and follow structured patterns. Metadata keys include origin, path, method, and unique ID components.

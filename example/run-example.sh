@@ -53,7 +53,7 @@ fi
 
 # Start the server in background
 echo -e "${YELLOW}Starting API server...${NC}"
-node server.js &
+node server.ts &
 SERVER_PID=$!
 
 # Wait for server to start
@@ -72,7 +72,7 @@ echo ""
 # Run the client demonstration
 echo -e "${YELLOW}Running cache demonstration...${NC}"
 echo ""
-node client.js
+node client.ts
 
 # Cleanup
 echo ""

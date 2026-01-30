@@ -21,26 +21,27 @@ Built on top of [iovalkey](https://github.com/valkey-io/iovalkey) for optimal Re
 npm install undici-cache-redis
 ```
 
-## Quick Start
+## Documentation
 
-### Basic Usage
+### Quick Start
+
+#### Basic Usage
 
 ```javascript
 import { Agent, interceptors } from 'undici'
-import { RedisCacheStore } from 'undici-cache-redis'
+import { createStore } from 'undici-cache-redis'
 
-// Create a Redis cache store
-const store = new RedisCacheStore({
+// Create a Redis cache store (v2 by default)
+const store = createStore({
   clientOpts: {
     host: 'localhost',
-    port: 6379,
-    keyPrefix: 'my-app:cache:'
-  }
+    port: 6379
+  },
+  prefix: 'my-app:cache'
 })
 
 // Create Undici agent with caching
-const agent = new Agent()
-  .compose(interceptors.cache({ store }))
+const agent = new Agent().compose(interceptors.cache({ store }))
 
 // Make requests - responses will be automatically cached
 const response = await agent.request({
@@ -52,18 +53,18 @@ const response = await agent.request({
 console.log(await response.body.text())
 ```
 
-### Cache Invalidation by Tags
+#### Cache Invalidation by Tags
 
 ```javascript
 import { Agent, interceptors } from 'undici'
-import { RedisCacheStore } from 'undici-cache-redis'
+import { createStore } from 'undici-cache-redis'
 
-const store = new RedisCacheStore({
-  cacheTagsHeader: 'cache-tags' // Header to read cache tags from
+const store = createStore({
+  cacheTagsHeader: 'cache-tags', // Header to read cache tags from
+  prefix: 'my-app:cache'
 })
 
-const agent = new Agent()
-  .compose(interceptors.cache({ store }))
+const agent = new Agent().compose(interceptors.cache({ store }))
 
 // Server responds with: Cache-Tags: user:123,profile
 const response = await agent.request({
@@ -76,152 +77,112 @@ const response = await agent.request({
 await store.deleteTags(['user:123'])
 ```
 
-### Advanced Cache Management with RedisCacheManager
+#### Unified Cache Manager
+
+In v2, the cache store and manager are unified into a single class. You can use both store and manager operations on the same instance:
 
 ```javascript
-import { RedisCacheStore, RedisCacheManager } from 'undici-cache-redis'
+import { createStore, createManager } from 'undici-cache-redis'
 
-// Create both store and manager
-const store = new RedisCacheStore({
-  cacheTagsHeader: 'cache-tags'
-})
-
-const manager = new RedisCacheManager({
-  clientOpts: { host: 'localhost', port: 6379 }
-})
+// Both create the same unified Cache instance
+const store = createStore({ prefix: 'my-app:cache' })
+const manager = createManager({ prefix: 'my-app:cache' })
 
 // Subscribe to cache events
 await manager.subscribe()
 
-manager.on('add-entry', (entry) => {
-  console.log('Cache entry added:', entry.path, entry.cacheTags)
+manager.on('subscription:entry:add', ({ id, metadata, value }) => {
+  console.log('Cache entry added:', metadata.path, metadata.tags)
 })
 
-manager.on('delete-entry', ({ id, keyPrefix }) => {
+manager.on('subscription:entry:delete', ({ id, prefix }) => {
   console.log('Cache entry deleted:', id)
 })
 
-// Analyze cache contents
-await manager.streamEntries((entry) => {
-  console.log(`Entry: ${entry.path}, Tags: [${entry.cacheTags.join(', ')}]`)
-}, '')
+// Stream through all cache entries
+await manager.streamEntries(entry => {
+  console.log(`Entry: ${entry.path}, Tags: [${entry.tags.join(', ')}]`)
+})
 
-// Invalidate by tags using the store
+// Get entries by tag
+const taggedEntries = await manager.getTag('user:123')
+console.log(`Found ${taggedEntries.length} entries with tag 'user:123'`)
+
+// Get dependent entries (entries sharing cache tags)
+const dependentEntries = await manager.getDependentEntries('some-entry-id')
+
+// Invalidate by tags
 await store.deleteTags(['user:123', 'products'])
 
-// Clean up specific entries by ID
-const entriesToDelete = []
-await manager.streamEntries((entry) => {
-  if (entry.path.startsWith('/api/products/')) {
-    entriesToDelete.push(entry.id)
-  }
-}, '')
-
-if (entriesToDelete.length > 0) {
-  await manager.deleteIds(entriesToDelete, '')
-}
+// Delete specific entries by ID
+await manager.deleteIds(['entry-id-1', 'entry-id-2'])
 
 // Get response body for debugging
-const responseBody = await manager.getResponseById('some-entry-id', '')
+const responseBody = await manager.getResponseById('some-entry-id')
 ```
 
-### Cache Management
+### Configuration Options
 
-```javascript
-import { RedisCacheManager } from 'undici-cache-redis'
-
-const manager = new RedisCacheManager({
-  clientOpts: {
-    host: 'localhost',
-    port: 6379
-  }
-})
-
-// Subscribe to cache events
-await manager.subscribe()
-
-manager.on('add-entry', (entry) => {
-  console.log('Cache entry added:', entry.id)
-})
-
-manager.on('delete-entry', ({ id, keyPrefix }) => {
-  console.log('Cache entry deleted:', id)
-})
-
-// Stream all cache entries
-await manager.streamEntries((entry) => {
-  console.log('Entry:', entry.origin, entry.path, entry.statusCode)
-}, 'my-app:cache:')
-
-// Get response body by ID
-const responseBody = await manager.getResponseById('entry-id', 'my-app:cache:')
-```
-
-## Configuration Options
-
-### RedisCacheStore Options
+#### Cache Options
 
 ```typescript
-interface RedisCacheStoreOpts {
+interface CacheOptions {
   // Redis client options (passed to iovalkey)
   clientOpts?: {
     host?: string
     port?: number
-    keyPrefix?: string
-    // ... other iovalkey options
+    // ... other iovalkey options (excludes keyPrefix)
   }
-  
-  // Maximum size in bytes for a single cached response
+
+  // Key prefix for Redis keys (replaces clientOpts.keyPrefix)
+  prefix?: string
+
+  // Maximum size in bytes for a single cached response (default: 10MB)
   maxEntrySize?: number
-  
-  // Maximum total cache size (for client-side cache)
-  maxSize?: number
-  
-  // Maximum number of entries (for client-side cache)
-  maxCount?: number
-  
+
+  // Maximum batch size for bulk operations (default: 100)
+  maxBatchSize?: number
+
+  // Concurrency for parallel operations (default: 10)
+  concurrency?: number
+
   // Enable/disable client-side tracking cache (default: true)
   tracking?: boolean
-  
+
+  // Configure client-side tracking options (default: true)
+  clientConfigTracking?: boolean
+
+  // Maximum size in bytes for tracking cache
+  maxSize?: number
+
+  // Maximum number of entries in tracking cache
+  maxCount?: number
+
   // Header name to read cache tags from responses
   cacheTagsHeader?: string
-  
+
+  // Configure keyspace event notifications (default: true)
+  // Set to false for managed Redis services
+  clientConfigKeyspaceEventNotify?: boolean
+
   // Error callback function
   errorCallback?: (err: Error) => void
 }
 ```
 
-### RedisCacheManager Options
+### Advanced Usage Examples
 
-```typescript
-interface RedisCacheManagerOpts {
-  // Redis client options
-  clientOpts?: {
-    host?: string
-    port?: number
-    // ... other iovalkey options
-  }
-  
-  // Whether to configure keyspace event notifications (default: true)
-  // Set to false for managed Redis services
-  clientConfigKeyspaceEventNotify?: boolean
-}
-```
-
-## Advanced Usage Examples
-
-### Using with fetch()
+#### Using with fetch()
 
 ```javascript
 import { Agent, interceptors, setGlobalDispatcher } from 'undici'
-import { RedisCacheStore } from 'undici-cache-redis'
+import { createStore } from 'undici-cache-redis'
 
 // Create a Redis cache store
-const store = new RedisCacheStore()
+const store = createStore()
 
 // Create agent with caching
-const agent = new Agent()
-  .compose(interceptors.cache({ store }))
+const agent = new Agent().compose(interceptors.cache({ store }))
 
 // Set as global dispatcher to enable caching for fetch
 setGlobalDispatcher(agent)
@@ -236,12 +197,11 @@ if (response.headers.get('x-cache') === 'HIT') {
 }
 ```
 
-### Working with Vary Headers
+#### Working with Vary Headers
 
 ```javascript
-const store = new RedisCacheStore()
-const agent = new Agent()
-  .compose(interceptors.cache({ store }))
+const store = createStore()
+const agent = new Agent().compose(interceptors.cache({ store }))
 
 // Different responses cached based on Accept-Language header
 const responseEn = await agent.request({
@@ -259,28 +219,68 @@ const responseFr = await agent.request({
 })
 ```
 
-### Manual Cache Operations
+#### Multi-Prefix Operations
+
+V2 supports operations across multiple prefixes for multi-tenant or multi-environment scenarios:
 
 ```javascript
-const store = new RedisCacheStore()
+const store = createStore({ prefix: 'tenant1:cache' })
 
-// Delete specific cache entries
+// Get entry from multiple prefixes
+const entry = await store.get({ origin: 'https://api.example.com', method: 'GET', path: '/users/123' }, [
+  'tenant1:cache',
+  'tenant2:cache',
+  'shared:cache'
+])
+
+// Delete entries across multiple prefixes
+await store.deleteKeys(
+  [{ origin: 'https://api.example.com', method: 'GET', path: '/users/123' }],
+  ['tenant1:cache', 'tenant2:cache']
+)
+
+// Get all entries with a specific tag across prefixes
+const entries = await store.getTag('user:123', ['tenant1:cache', 'tenant2:cache'])
+
+// Subscribe to events from multiple prefixes
+await store.subscribe(['tenant1:cache', 'tenant2:cache'])
+```
+
+#### Manual Cache Operations
+
+```javascript
+const store = createStore()
+
+// Delete cache entries by key
+await store.delete({ origin: 'https://api.example.com', method: 'GET', path: '/users/123' })
+
+// Delete specific entries by key
 await store.deleteKeys([
-  { origin: 'https://api.example.com', method: 'GET', path: '/users/123' }
+  { origin: 'https://api.example.com', method: 'GET', path: '/users/123' },
+  { origin: 'https://api.example.com', method: 'GET', path: '/users/456' }
 ])
 
 // Delete by cache tags
 await store.deleteTags(['user:123', 'profile'])
 
+// Delete by specific IDs
+await store.deleteIds(['entry-id-1', 'entry-id-2'])
+
+// Get multiple entries efficiently
+const entries = await store.getKeys([
+  { origin: 'https://api.example.com', method: 'GET', path: '/users/123' },
+  { origin: 'https://api.example.com', method: 'GET', path: '/users/456' }
+])
+
 // Close the store when done
 await store.close()
 ```
 
-### Error Handling
+#### Error Handling
 
 ```javascript
-const store = new RedisCacheStore({
-  errorCallback: (err) => {
+const store = createStore({
+  errorCallback: err => {
     console.error('Cache error:', err.message)
     // Send to monitoring service
     monitoringService.error('cache_error', err)
@@ -288,12 +288,12 @@ const store = new RedisCacheStore({
 })
 ```
 
-## Managed Redis Services
+### Managed Redis Services
 
-When using managed Redis services like AWS ElastiCache, some Redis commands may be restricted. Configure the cache manager accordingly:
+When using managed Redis services like AWS ElastiCache, some Redis commands may be restricted. Configure the cache accordingly:
 
 ```javascript
-const manager = new RedisCacheManager({
+const store = createStore({
   clientConfigKeyspaceEventNotify: false, // Disable auto-configuration
   clientOpts: {
     host: 'your-elasticache-endpoint.cache.amazonaws.com',
@@ -303,9 +303,10 @@ const manager = new RedisCacheManager({
 ```
 
 Ensure your managed Redis instance has the following configuration:
-- `notify-keyspace-events AKE` (if not automatically configured)
 
-## Multi-Host Architecture
+- `notify-keyspace-events AKE` (for event notifications)
+
+### Multi-Host Architecture
 
 ```mermaid
 graph TB
@@ -314,200 +315,165 @@ graph TB
         U2[User 2]
         U3[User N]
     end
-    
+
     subgraph "Host 1"
         A1[App]
-        B1[Local Cache]
     end
-    
-    subgraph "Host 2" 
+
+    subgraph "Host 2"
         A2[App]
-        B2[Local Cache]
     end
-    
+
     subgraph "Host N"
         A3[App]
-        B3[Local Cache]
     end
-    
+
     subgraph "Redis/Valkey"
         R[Shared Cache Storage<br/>+ Invalidation Events]
     end
-    
+
     subgraph "External APIs"
         API[HTTP APIs]
     end
-    
+
     U1 --> A1
     U2 --> A2
     U3 --> A3
-    
-    A1 <--> B1
-    A2 <--> B2
-    A3 <--> B3
-    
-    B1 <--> R
-    B2 <--> R
-    B3 <--> R
-    
+
+    A1 <--> R
+    A2 <--> R
+    A3 <--> R
+
     A1 --> API
     A2 --> API
     A3 --> API
-    
-    R -.-> B1
-    R -.-> B2
-    R -.-> B3
-    
+
+    R -.-> A1
+    R -.-> A2
+    R -.-> A3
+
     classDef users fill:#e8f5e8
     classDef app fill:#e3f2fd
-    classDef cache fill:#f3e5f5
     classDef redis fill:#ffebee
     classDef api fill:#fff3e0
-    
+
     class U1,U2,U3 users
     class A1,A2,A3 app
-    class B1,B2,B3 cache
     class R redis
     class API api
 ```
 
-**Flow**: Users make requests → Apps check local/Redis cache → If miss, fetch from APIs → Cache responses → Invalidation events sync all hosts.
+**Flow**: Users make requests → Apps check Redis cache → If miss, fetch from APIs → Cache responses → Invalidation events sync all hosts.
 
-## Cache Key Structure
+### V2 Architecture and Data Structure
 
-The library uses a structured approach to Redis keys:
+V2 uses an optimized Redis data structure based on sorted sets with lexicographical ordering:
 
-- **Metadata keys**: `{prefix}metadata:{origin}:{path}:{method}:{id}`
-- **Value keys**: `{prefix}values:{id}`
-- **ID keys**: `{prefix}ids:{id}`
-- **Tag keys**: `{prefix}cache-tags:{tag1}:{tag2}:{id}`
+#### Key Structure
 
-Where `{prefix}` is your configured `keyPrefix` and `{id}` is a UUID for each cache entry.
+- **Routes**: `{prefix}routes` - Sorted set of all cached origins and paths
+- **Tags**: `{prefix}tags` - Sorted set of all cache tags
+- **Tag Index**: `{prefix}tags|{tagName}` - Sorted set of entry IDs for a specific tag
+- **Requests**: `{prefix}requests|{origin}|{path}` - Sorted set of HTTP methods for a route
+- **Request Variants**: `{prefix}request|{origin}|{path}|{method}` - Sorted set of cache identifiers (with vary info)
+- **Variant Tracking**: `{prefix}variants|{origin}|{path}|{method}` - Sorted set for deduplication
+- **Metadata**: `{prefix}metadata|{id}` - JSON metadata for cache entry
+- **Body**: `{prefix}body|{id}` - Base64-encoded response body
 
-## Cache Invalidation Flow
+#### Auto-Cleaning
 
-The following diagram illustrates how cache invalidation works across different scenarios:
+All sorted sets in v2 are auto-cleaning:
 
-```mermaid
-flowchart TD
-    A[Cache Invalidation Request] --> B{Invalidation Type}
-    
-    B -->|Delete by Key| C[delete key]
-    B -->|Delete by Tags| D[deleteTags tags]
-    B -->|Automatic Cleanup| E[Redis Expiration Events]
-    
-    C --> F[Find Metadata Keys]
-    F --> G[Get Metadata from Redis]
-    G --> H[Extract Associated Keys]
-    H --> I[Delete Redis Keys]
-    I --> JJ[Redis/Valkey Key Deleted]
-    JJ --> J[Update Tracking Cache]
-    J --> K[Clean up Tags]
-    K --> L[Complete]
-    
-    D --> M[Scan for Tag Patterns]
-    M --> N[Find Matching Tag Keys]
-    N --> O[Get Metadata References]
-    O --> P[Delete Tag Keys]
-    P --> PP[Redis/Valkey Keys Deleted]
-    PP --> Q[Delete Referenced Entries]
-    Q --> R[Update Tracking Cache]
-    R --> S[Complete]
-    
-    E --> T[Redis Keyspace Event]
-    T --> U{Event Type}
-    U -->|expired| V[Entry Expiration]
-    U -->|del| W[Manual Deletion]
-    
-    V --> X[Parse Key Type]
-    X --> Y{Key Type}
-    Y -->|metadata| Z[Emit delete-entry Event]
-    Y -->|cache-tags| AA[Parse Tags from Key]
-    AA --> BB[Global Tag Cleanup]
-    BB --> CC[Delete Tag Entries]
-    CC --> DD[Complete]
-    
-    W --> X
-    Z --> DD
-    
-    %% Client-side tracking invalidation triggered by Redis updates
-    JJ --> EE[Redis Client Tracking Detects Change]
-    PP --> EE
-    EE --> FF[__redis__:invalidate Event]
-    FF --> GG[Parse Metadata Key]
-    GG --> HH[Remove from Tracking Cache]
-    HH --> II[Tracking Complete]
-    
-    %% Styling
-    classDef primary fill:#e1f5fe
-    classDef process fill:#f3e5f5
-    classDef decision fill:#fff3e0
-    classDef complete fill:#e8f5e8
-    classDef redis fill:#ffebee
-    
-    class A,C,D,E primary
-    class F,G,H,I,J,K,M,N,O,P,Q,R,T,V,W,X,AA,BB,CC,FF,GG,HH process
-    class B,U,Y decision
-    class L,S,DD,II complete
-    class JJ,PP,EE redis
-```
+- When traversing sets, expired entries are automatically detected and removed
+- Automatic cleanup is scheduled via the cleanup queue
+- Cleanup runs asynchronously without blocking operations
+- Graceful shutdown ensures all pending cleanup tasks complete
 
-### Invalidation Methods
+### API Reference
 
-1. **Direct Key Deletion**: Targets specific cache entries by URL pattern
-2. **Tag-based Deletion**: Removes all entries associated with given cache tags
-3. **Automatic Expiration**: Handles Redis TTL expiration and manual deletions
-4. **Client-side Tracking**: Maintains local cache consistency via Redis invalidation notifications
+#### Cache (Store & Manager)
 
-## Performance Considerations
+##### Methods
 
-1. **Client-side Tracking**: Enabled by default, provides in-memory caching of metadata
-2. **Pipeline Operations**: Uses Redis pipelining for batch operations
-3. **Binary Data**: Efficiently handles binary responses with base64 encoding
-4. **Memory Management**: Configurable size limits prevent memory exhaustion
+**Store Methods:**
 
-## API Reference
-
-### RedisCacheStore
-
-#### Methods
-
-- `get(key: CacheKey): Promise<GetResult | undefined>` - Retrieve cached response
-- `createWriteStream(key: CacheKey, value: CachedResponse): Writable` - Create write stream for caching
-- `delete(key: CacheKey): Promise<void>` - Delete cache entries by key pattern
-- `deleteKeys(keys: CacheKey[]): Promise<void>` - Delete multiple cache entries
-- `deleteTags(tags: string[]): Promise<void>` - Delete entries by cache tags
+- `get(key: CacheKey, prefixes?: string | string[]): Promise<CacheValueWithBody | undefined>` - Retrieve cached response with body
+- `get(key: CacheKey, prefixes: string | string[] | undefined, includeBody: false): Promise<CacheValueWithAdditionalProperties | undefined>` - Retrieve cached response metadata only
+- `getKeys(keys: Iterable<CacheKey>, prefixes?: string | string[]): Promise<CacheValueWithBody[]>` - Get multiple cache entries efficiently
+- `createWriteStream(key: CacheKey, value: CacheValue): Writable` - Create write stream for caching
+- `delete(key: CacheKey, prefixes?: string | string[]): Promise<void>` - Delete all cache entries for a route (all methods)
+- `deleteKeys(keys: Iterable<CacheKey>, prefixes?: string | string[]): Promise<void>` - Delete specific cache entries
+- `deleteTag(tags: string | string[], prefixes?: string | string[]): Promise<void>` - Delete entries matching ALL specified tags
+- `deleteTags(tags: Array<string | string[]>, prefixes?: string | string[]): Promise<void>` - Delete entries for each tag/tag combination
 - `close(): Promise<void>` - Close Redis connections
 
-#### Events
+**Manager Methods:**
 
-- `write` - Emitted when a cache entry is written
+- `streamEntries(callback: (entry: CacheValueWithAdditionalProperties) => unknown | Promise<unknown>, prefixes?: string | string[]): Promise<void>` - Stream all cache entries
+- `subscribe(prefixes?: string | string[]): Promise<void>` - Subscribe to cache events via Redis keyspace notifications
+- `getTag(tag: string, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]>` - Get all entries with a specific tag
+- `getTags(tags: Array<string | string[]>, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]>` - Get entries for multiple tags
+- `getResponseById(id: string, prefixes?: string | string[]): Promise<string | null>` - Get response body by entry ID
+- `getDependentEntries(id: string, prefixes?: string | string[]): Promise<CacheValueWithAdditionalProperties[]>` - Get entries sharing cache tags with specified entry
+- `deleteIds(ids: string[], prefixes?: string | string[]): Promise<void>` - Delete entries by IDs
 
-### RedisCacheManager
+**Properties:**
 
-#### Methods
+- `version: string` - Version string ('2.0.0')
+- `prefix: string` - The configured prefix for this cache instance
+- `client: Redis` - Secondary Redis client for advanced operations
 
-- `streamEntries(callback, keyPrefix): Promise<void>` - Stream all cache entries
-- `subscribe(): Promise<void>` - Subscribe to cache events
-- `getResponseById(id, keyPrefix): Promise<string | null>` - Get response body by ID
-- `getDependentEntries(id, keyPrefix): Promise<CacheEntry[]>` - Get entries sharing cache tags
-- `deleteIds(ids, keyPrefix): Promise<void>` - Delete entries by IDs
-- `close(): Promise<void>` - Close connections
+##### Events
 
-#### Events
+**Store Events:**
 
-- `add-entry` - Emitted when a cache entry is added
-- `delete-entry` - Emitted when a cache entry is deleted
+- `entry:write` - Emitted when a cache entry is written
+  - Payload: `{ prefix: string, id: string, metadata: CacheMetadata, value: CacheValue }`
+- `entry:delete` - Emitted when a cache entry is deleted
+  - Payload: `{ id: string, prefix: string }`
+- `tag:delete` - Emitted when a tag is deleted
+  - Payload: `{ tag: string, prefix: string }`
+
+**Manager Events (via subscription):**
+
+- `subscription:entry:add` - Emitted when a cache entry is added (via Redis keyspace events)
+  - Payload: `{ prefix: string, id: string, metadata: CacheMetadata, value: CacheValue }`
+- `subscription:entry:delete` - Emitted when a cache entry is deleted (via Redis keyspace events)
+  - Payload: `{ id: string, prefix: string }`
+
+**Tracking Events:**
+
+- `tracking:add` - Emitted when an entry is added to the tracking cache
+  - Payload: `{ prefix: string, origin: string, path: string, method: string, headers: Record<string, string> }`
+- `tracking:delete` - Emitted when an entry is deleted from the tracking cache
+  - Payload: `{ prefix: string, origin: string, path: string, method: string }`
+
+**System Events:**
+
 - `error` - Emitted on errors
+- `cleanup:task` - Emitted when a cleanup task completes (internal)
+- `cleanup:complete` - Emitted when cleanup queue is empty (internal)
 
-## Troubleshooting
+### Performance Considerations
 
-### Common Issues
+1. **Batch Operations**: Uses configurable batch size and concurrency for bulk operations
+2. **Auto-Pipelining**: Redis auto-pipelining is enabled by default for optimal performance
+3. **Binary Data**: Efficiently handles binary responses with base64 encoding
+4. **Memory Management**: Configurable size limits prevent memory exhaustion
+5. **Parallel Processing**: Uses `p-map` for concurrent operations with configurable concurrency
+6. **LRU Caching**: Internal LRU cache (1000 entries) for serialized keys reduces redundant work
+7. **Lazy Cleanup**: Automatic cleanup of expired entries during traversal
+8. **Deduplication**: Prevents duplicate entries with identical vary headers
+
+### Troubleshooting
+
+#### Common Issues
 
 **Connection Errors**
+
 ```javascript
 // Ensure Redis is running and accessible
-const store = new RedisCacheStore({
+const store = createStore({
   clientOpts: {
     host: 'localhost',
     port: 6379,
@@ -518,19 +484,21 @@ const store = new RedisCacheStore({
 ```
 
 **Memory Issues**
+
 ```javascript
-// Limit cache size to prevent memory exhaustion
-const store = new RedisCacheStore({
+// Limit cache entry size and tune batch operations
+const store = createStore({
   maxEntrySize: 1024 * 1024, // 1MB per entry
-  maxSize: 100 * 1024 * 1024, // 100MB total
-  maxCount: 10000 // Max 10k entries
+  maxBatchSize: 50, // Process 50 entries at a time
+  concurrency: 5 // 5 parallel operations
 })
 ```
 
 **Managed Redis Issues**
+
 ```javascript
 // For AWS ElastiCache or similar services
-const manager = new RedisCacheManager({
+const store = createStore({
   clientConfigKeyspaceEventNotify: false,
   clientOpts: {
     host: 'your-cluster.cache.amazonaws.com',
@@ -541,11 +509,128 @@ const manager = new RedisCacheManager({
 })
 ```
 
-## Requirements
+**Debugging Cache Issues**
 
-- Node.js >= 20
+```javascript
+const store = createStore({
+  errorCallback: err => {
+    console.error('Cache error:', err)
+  }
+})
+
+// Listen to cache events
+store.on('entry:write', ({ id, metadata, value }) => {
+  console.log('Cached:', metadata.origin + metadata.path)
+})
+
+store.on('entry:delete', ({ id, prefix }) => {
+  console.log('Deleted:', id)
+})
+
+// Enable subscription for real-time monitoring
+await store.subscribe()
+
+store.on('subscription:entry:add', ({ id, metadata, value }) => {
+  console.log('Entry added (via subscription):', metadata.path)
+})
+```
+
+### Migration from V1 to V2
+
+Key differences when migrating from v1 to v2:
+
+1. **Unified API**: Both `createStore()` and `createManager()` return the same `Cache` instance
+2. **Prefix Configuration**: Use `prefix` option instead of `clientOpts.keyPrefix`
+3. **Event Names**: Events are prefixed with scope (`entry:write`, `entry:delete`, `tag:delete`, `subscription:entry:add`, `subscription:entry:delete`)
+4. **Multi-Prefix Support**: Most methods now accept `prefixes` parameter for multi-tenant scenarios
+5. **New Methods**: `getKeys()`, `getTag()`, `getTags()`, `getDependentEntries()`
+6. **Manager Methods**: Methods like `streamEntries()`, `getResponseById()`, and `deleteIds()` accept prefixes as second parameter
+7. **Auto-Cleanup**: Expired entries are automatically cleaned during traversal
+8. **Performance Options**: New `maxBatchSize` and `concurrency` configuration options
+
+**V1 Code:**
+
+```javascript
+import { createStore, createManager } from 'undici-cache-redis'
+
+const store = createStore(
+  {
+    clientOpts: {
+      host: 'localhost',
+      port: 6379,
+      keyPrefix: 'my-app:cache:' // Note the trailing colon
+    }
+  },
+  '1.0.0'
+)
+
+const manager = createManager(
+  {
+    clientOpts: {
+      host: 'localhost',
+      port: 6379
+    }
+  },
+  '1.0.0'
+)
+
+await manager.subscribe()
+manager.on('add-entry', entry => {
+  console.log('Added:', entry.id)
+})
+
+await manager.streamEntries(entry => {
+  console.log(entry)
+}, 'my-app:cache:') // Note the trailing colon
+```
+
+**V2 Code:**
+
+```javascript
+import { createStore } from 'undici-cache-redis'
+
+// Both store and manager operations on the same instance
+const cache = createStore({
+  prefix: 'my-app:cache', // No trailing separator needed
+  clientOpts: {
+    host: 'localhost',
+    port: 6379
+  }
+})
+
+// Subscribe on the same instance
+await cache.subscribe()
+
+// Updated event names
+cache.on('subscription:entry:add', ({ id, metadata, value }) => {
+  console.log('Added:', id)
+})
+
+// Simplified API - no trailing separator
+await cache.streamEntries(entry => {
+  console.log(entry)
+})
+
+// Can also specify different prefixes
+await cache.streamEntries(
+  entry => {
+    console.log(entry)
+  },
+  ['prefix1', 'prefix2']
+)
+```
+
+### Requirements
+
+- Node.js >= 22.19.0
 - Redis >= 6.0 or Valkey >= 7.2
 - Undici >= 7.0
+
+## Version 1.x.x
+
+Version 1.x.x is still included in this module and accessible by passing `'1.0.0'` as second argument to `createStore` and `createManager`.
+
+The documentation is [accessible here](./docs/v1.md).
 
 ## License
 
@@ -566,6 +651,7 @@ limitations under the License.
 This project includes comprehensive benchmarks to measure performance improvements with different caching strategies.
 
 ### Quick Benchmark
+
 ```bash
 # Automated benchmark with all prerequisites checked
 ./run-benchmarks.sh
@@ -575,13 +661,15 @@ npm run bench
 ```
 
 The benchmarks test a realistic proxy server architecture:
-- **Server Foo (Proxy)**: Uses Undici with different cache configurations  
+
+- **Server Foo (Proxy)**: Uses Undici with different cache configurations
 - **Server Bar (Backend)**: API server with simulated latency
 - **Autocannon**: Load testing tool measuring performance
 
 Expected results show **10-15x performance improvement** with caching enabled.
 
 For detailed benchmarking instructions, see [benchmarks/README.md](./benchmarks/README.md).
+
 ## Contributing
 
 This project is part of the Platformatic ecosystem. For contributing guidelines, please refer to the main [Platformatic repository](https://github.com/platformatic/platformatic).
