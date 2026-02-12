@@ -135,6 +135,100 @@ for (const maxAgeHeader of ['s-maxage', 'max-age']) {
   })
 }
 
+test('stale-while-revalidate 304 should refresh the cache entry', async (t) => {
+  const store = new RedisCacheStore()
+  let requestsToOrigin = 0
+  let revalidationRequests = 0
+  const revalidationDeferred = createDeferred()
+
+  const server = createServer((req, res) => {
+    if (req.headers['if-none-match']) {
+      revalidationRequests++
+      if (req.headers['if-none-match'] !== '"test-etag"') {
+        t.assert.fail(`etag mismatch: ${req.headers['if-none-match']}`)
+      }
+      res.statusCode = 304
+      res.setHeader('cache-control', 'public, s-maxage=10, stale-while-revalidate=100')
+      res.end()
+      revalidationDeferred.resolve()
+    } else {
+      requestsToOrigin++
+      res.setHeader('cache-control', 'public, s-maxage=1, stale-while-revalidate=100')
+      res.setHeader('etag', '"test-etag"')
+      res.end('cached-body')
+    }
+  }).listen(0)
+
+  const client = new Client(`http://localhost:${server.address().port}`)
+    .compose(interceptors.cache({ store }))
+
+  t.after(async () => {
+    server.close()
+    await client.close()
+    await store.close()
+  })
+
+  await once(server, 'listening')
+
+  // First request: hits origin, response gets cached
+  {
+    const response = await client.request({
+      origin: 'localhost',
+      path: '/',
+      method: 'GET'
+    })
+    t.assert.equal(requestsToOrigin, 1)
+    t.assert.equal(response.statusCode, 200)
+    t.assert.equal(await response.body.text(), 'cached-body')
+  }
+
+  await once(store, 'write')
+
+  // Wait for the entry to become stale (s-maxage=1)
+  await sleep(1500)
+
+  // Second request: entry is stale, served with warning + background revalidation
+  {
+    const response = await client.request({
+      origin: 'localhost',
+      path: '/',
+      method: 'GET'
+    })
+    t.assert.equal(requestsToOrigin, 1)
+    t.assert.equal(response.statusCode, 200)
+    t.assert.equal(await response.body.text(), 'cached-body')
+    t.assert.ok(response.headers.warning, 'Expected stale warning')
+  }
+
+  // Wait for the background revalidation (304) to complete
+  await revalidationDeferred.promise
+  t.assert.strictEqual(revalidationRequests, 1)
+
+  // Wait for the cache entry to be updated in Redis
+  await sleep(500)
+
+  // Third request: after 304 revalidation, the cache should be refreshed.
+  // The 304 response has s-maxage=10, so the entry should be fresh for 10s.
+  {
+    const response = await client.request({
+      origin: 'localhost',
+      path: '/',
+      method: 'GET'
+    })
+    t.assert.equal(requestsToOrigin, 1)
+    t.assert.equal(response.statusCode, 200)
+    t.assert.equal(await response.body.text(), 'cached-body')
+
+    // After a successful 304 revalidation, the cache entry should be fresh.
+    // If the entry was NOT refreshed (bug), it will still be stale with a warning.
+    t.assert.strictEqual(
+      response.headers.warning,
+      undefined,
+      'Expected response to be fresh after 304 revalidation, but got stale warning'
+    )
+  }
+})
+
 test('stale-if-error from response works as expected', async (t) => {
   const store = new RedisCacheStore()
 
