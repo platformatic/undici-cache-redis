@@ -1,11 +1,10 @@
 // @ts-check
-'use strict'
 
-const { EventEmitter, setMaxListeners } = require('node:events')
-const { Writable } = require('node:stream')
-const { setTimeout: sleep } = require('node:timers/promises')
-const { Redis } = require('iovalkey')
-const TrackingCache = require('./tracking-cache.js')
+import { EventEmitter, setMaxListeners } from 'node:events'
+import { Writable } from 'node:stream'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { Redis } from 'iovalkey'
+import TrackingCache from './tracking-cache.js'
 
 /**
  * @typedef {{
@@ -44,7 +43,7 @@ const TrackingCache = require('./tracking-cache.js')
  * @typedef {import('./internal-types.d.ts').CacheStore} CacheStore
  * @implements {CacheStore}
  */
-class RedisCacheStore extends EventEmitter {
+export class RedisCacheStore extends EventEmitter {
   #maxEntrySize = Infinity
 
   /**
@@ -101,7 +100,7 @@ class RedisCacheStore extends EventEmitter {
   #context
 
   /**
-   * @param {import('../index.d.ts').RedisCacheStoreOpts | undefined} opts
+   * @param {import('../../index.d.ts').RedisCacheStoreOpts | undefined} opts
    */
   constructor (opts) {
     super()
@@ -659,7 +658,7 @@ class RedisCacheStore extends EventEmitter {
   }
 }
 
-class RedisCacheManager extends EventEmitter {
+export class RedisCacheManager extends EventEmitter {
   /**
    * @type {import('iovalkey').Redis}
    */
@@ -701,7 +700,7 @@ class RedisCacheManager extends EventEmitter {
   #clientConfigKeyspaceEventNotify
 
   /**
-   * @param {import('../index.d.ts').RedisCacheManagerOpts | undefined} opts
+    * @param {import('../../index.d.ts').RedisCacheManagerOpts | undefined} opts
    */
   constructor (opts) {
     super()
@@ -737,7 +736,7 @@ class RedisCacheManager extends EventEmitter {
   }
 
   /**
-   * @param {(entry: import('../index.d.ts').CacheEntry) => Promise<unknown> | unknown} callback
+    * @param {(entry: import('../../index.d.ts').CacheEntry) => Promise<unknown> | unknown} callback
    * @param {string} keyPrefix
    * @returns {Promise<void>}
    */
@@ -841,7 +840,7 @@ class RedisCacheManager extends EventEmitter {
   /**
    * @param {string} id
    * @param {string} keyPrefix
-   * @returns {Promise<import('../index.d.ts').CacheEntry[]>}
+    * @returns {Promise<import('../../index.d.ts').CacheEntry[]>}
    */
   async getDependentEntries (id, keyPrefix = '') {
     const { metadataKey } = await this.#redis.hgetall(`${keyPrefix}ids:${id}`)
@@ -909,7 +908,7 @@ class RedisCacheManager extends EventEmitter {
   /**
    * @param {string} idKey
    * @param {string} keyPrefix
-   * @returns {Promise<import('../index.d.ts').CacheEntry | undefined>}
+    * @returns {Promise<import('../../index.d.ts').CacheEntry | undefined>}
    */
   async #getEntryByIdKey (idKey, keyPrefix = '') {
     const { metadataKey } = await this.#redis.hgetall(
@@ -923,7 +922,7 @@ class RedisCacheManager extends EventEmitter {
   /**
    * @param {string} tagsKey
    * @param {string} keyPrefix
-   * @returns {Promise<import('../index.d.ts').CacheEntry | undefined>}
+    * @returns {Promise<import('../../index.d.ts').CacheEntry | undefined>}
    */
   async #getEntryByTagsKey (tagsKey, keyPrefix = '') {
     const { metadataKey } = await this.#redis.hgetall(
@@ -937,7 +936,7 @@ class RedisCacheManager extends EventEmitter {
   /**
    * @param {string} metadataKey
    * @param {string} keyPrefix
-   * @returns {Promise<import('../index.d.ts').CacheEntry | undefined>}
+    * @returns {Promise<import('../../index.d.ts').CacheEntry | undefined>}
    */
   async #getEntryByMetadataKey (metadataKey, keyPrefix = '') {
     const { id } = parseMetadataKey(metadataKey)
@@ -1230,7 +1229,5 @@ function parseBufferArray (strings) {
   return output
 }
 
-module.exports = { RedisCacheStore, RedisCacheManager }
-
 // exported for unittests only.
-module.exports._scanByPattern = scanByPattern
+export { scanByPattern as _scanByPattern }
