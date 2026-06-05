@@ -1,8 +1,7 @@
-'use strict'
+import { pathToFileURL } from 'node:url'
+import { runProxyBenchmark } from './benchmark-utils.js'
 
-const { runProxyBenchmark } = require('./benchmark-utils')
-
-async function benchmarkProxyMemoryCache () {
+export default async function benchmarkProxyMemoryCache () {
   const result = await runProxyBenchmark({
     cacheType: 'memory',
     proxyPort: 3002,
@@ -14,8 +13,6 @@ async function benchmarkProxyMemoryCache () {
   return result
 }
 
-if (require.main === module) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   benchmarkProxyMemoryCache().catch(console.error)
 }
-
-module.exports = benchmarkProxyMemoryCache

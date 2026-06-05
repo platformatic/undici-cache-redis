@@ -8,9 +8,9 @@ This is `undici-cache-redis`, a Redis-backed cache store for Undici's cache inte
 
 ### Core Architecture
 
-- **RedisCacheStore** (lib/redis-cache-store.js:46): Main cache store implementation that implements Undici's cache store interface
-- **RedisCacheManager** (lib/redis-cache-store.js:665): Management interface for cache operations and monitoring
-- **TrackingCache** (lib/tracking-cache.js:5): In-memory LRU cache for client-side tracking to reduce Redis round trips
+- **RedisCache** (src/v2/cache.js): Default unified cache store and management API
+- **RedisCacheStore/RedisCacheManager** (src/v1/redis-cache-store.js): Legacy V1 store and manager implementations
+- **TrackingCache** (src/v1/tracking-cache.js, src/v2/tracking-cache.js): In-memory LRU cache for client-side tracking to reduce Redis round trips
 
 The architecture uses a dual-layer caching approach:
 1. Optional client-side tracking cache (TrackingCache) for frequently accessed items

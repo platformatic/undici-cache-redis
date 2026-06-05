@@ -2,15 +2,19 @@
   "name": "undici-cache-redis",
   "version": "1.0.1",
   "description": "An Undici cache store with a Redis backend.",
-  "main": "index.js",
-  "directories": {
-    "lib": "lib"
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
   },
   "scripts": {
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "valkey": "docker compose up -d",
-    "test": "node --test --test-concurrency=1 ./test/*.test.js",
+    "test": "node --test --test-concurrency=1 ./test/v1/*.test.js ./test/v2/*.test.js ./test/v2/compatibility/*.test.js",
     "test:typescript": "tsd --files test/ && tsc ./index.d.ts --noEmit",
     "example:server": "node example/server.js",
     "example:client": "node example/client.js",
@@ -18,7 +22,8 @@
     "example:docker:up": "cd example && docker-compose up -d",
     "example:docker:down": "cd example && docker-compose down",
     "example:run": "cd example && ./run-example.sh",
-    "bench": "./benchmarks/run-benchmarks.sh"
+    "bench": "./benchmarks/run-benchmarks.sh",
+    "bench:scan-vs-index": "node benchmarks/bench-scan-vs-index.js"
   },
   "repository": {
     "type": "git",
@@ -38,17 +43,19 @@
   "homepage": "https://github.com/platformatic/undici-cache-redis#readme",
   "dependencies": {
     "iovalkey": "^0.3.3",
-    "lru_map": "^0.4.1"
+    "lru_map": "^0.4.1",
+    "p-map": "^7.0.4",
+    "xxhash-wasm": "^1.1.0"
   },
   "devDependencies": {
-    "atomic-sleep": "^1.0.0",
     "@types/node": "^24.0.0",
+    "atomic-sleep": "^1.0.0",
+    "autocannon": "^8.0.0",
     "eslint": "^9.32.0",
+    "fastify": "^5.4.0",
     "neostandard": "^0.13.0",
     "tsd": "^0.33.0",
     "typescript": "^5.9.2",
-    "undici": "^7.13.0",
-    "fastify": "^5.4.0",
-    "autocannon": "^8.0.0"
+    "undici": "^7.13.0"
   }
 }

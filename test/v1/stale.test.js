@@ -1,13 +1,11 @@
 // @ts-check
-'use strict'
-
-const { test, beforeEach } = require('node:test')
-const { once } = require('node:events')
-const { setTimeout: sleep } = require('node:timers/promises')
-const { RedisCacheStore } = require('../lib/redis-cache-store')
-const { createServer } = require('node:http')
-const { Client, interceptors } = require('undici')
-const { Redis } = require('iovalkey')
+import { once } from 'node:events'
+import { createServer } from 'node:http'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { beforeEach, test } from 'node:test'
+import { Redis } from 'iovalkey'
+import { Client, interceptors } from 'undici'
+import { RedisCacheStore } from '../../src/v1/redis-cache-store.js'
 
 beforeEach(async (t) => {
   const client = new Redis()
