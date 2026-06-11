@@ -1,8 +1,7 @@
-'use strict'
+import { pathToFileURL } from 'node:url'
+import { runProxyBenchmark } from './benchmark-utils.js'
 
-const { runProxyBenchmark } = require('./benchmark-utils')
-
-async function benchmarkProxyNoCache () {
+export default async function benchmarkProxyNoCache () {
   const result = await runProxyBenchmark({
     cacheType: 'none',
     proxyPort: 3001,
@@ -14,8 +13,6 @@ async function benchmarkProxyNoCache () {
   return result
 }
 
-if (require.main === module) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   benchmarkProxyNoCache().catch(console.error)
 }
-
-module.exports = benchmarkProxyNoCache

@@ -1,7 +1,5 @@
-'use strict'
-
-const { Agent, interceptors, setGlobalDispatcher } = require('undici')
-const { RedisCacheStore, RedisCacheManager } = require('../index.js')
+import { Agent, interceptors, setGlobalDispatcher } from 'undici'
+import { RedisCacheManager, RedisCacheStore } from '../index.js'
 
 const API_BASE_URL = 'http://localhost:3000'
 
