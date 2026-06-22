@@ -1,18 +1,16 @@
-'use strict'
-
-const { once } = require('node:events')
-const { createGzip, createGunzip } = require('node:zlib')
-const { Redis } = require('iovalkey')
+import { once } from 'node:events'
+import { createGzip, createGunzip } from 'node:zlib'
+import { Redis } from 'iovalkey'
 
 const REDIS_CONNECTION_STRING = 'redis://localhost:6379'
 
-async function cleanValkey () {
+export async function cleanValkey () {
   const redis = new Redis(REDIS_CONNECTION_STRING)
   await redis.flushall()
   redis.quit()
 }
 
-async function getAllKeys () {
+export async function getAllKeys () {
   const redis = new Redis(REDIS_CONNECTION_STRING)
   const keys = await redis.keys('*')
   redis.quit()
@@ -20,7 +18,7 @@ async function getAllKeys () {
   return keys
 }
 
-async function gzip (data) {
+export async function gzip (data) {
   const gzippedData = []
   const stream = createGzip()
 
@@ -34,7 +32,7 @@ async function gzip (data) {
   return Buffer.concat(gzippedData)
 }
 
-async function ungzip (data) {
+export async function ungzip (data) {
   const ungzippedData = []
   const stream = createGunzip()
 
@@ -46,11 +44,4 @@ async function ungzip (data) {
   await once(stream, 'end')
 
   return Buffer.concat(ungzippedData)
-}
-
-module.exports = {
-  cleanValkey,
-  getAllKeys,
-  gzip,
-  ungzip
 }
