@@ -1,13 +1,11 @@
-'use strict'
-
-const assert = require('node:assert/strict')
-const { test } = require('node:test')
-const { setTimeout: sleep } = require('node:timers/promises')
-const { createServer } = require('node:http')
-const { once } = require('node:events')
-const { Client, interceptors } = require('undici')
-const RedisCacheStore = require('../index.js')
-const { cleanValkey, getAllKeys, gzip, ungzip } = require('./helper.js')
+import assert from 'node:assert/strict'
+import { once } from 'node:events'
+import { createServer } from 'node:http'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { test } from 'node:test'
+import { Client, interceptors } from 'undici'
+import { RedisCacheStore } from '../../index.js'
+import { cleanValkey, getAllKeys, gzip, ungzip } from '../helper.js'
 
 test('caches request successfully', async (t) => {
   let requestsToOrigin = 0

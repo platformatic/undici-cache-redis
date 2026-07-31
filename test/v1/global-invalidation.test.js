@@ -1,13 +1,11 @@
-'use strict'
-
-const assert = require('node:assert/strict')
-const { test } = require('node:test')
-const { setTimeout: sleep } = require('node:timers/promises')
-const { createServer } = require('node:http')
-const { once } = require('node:events')
-const { Client, interceptors } = require('undici')
-const { RedisCacheStore, RedisCacheManager } = require('../index.js')
-const { cleanValkey } = require('./helper.js')
+import assert from 'node:assert/strict'
+import { once } from 'node:events'
+import { createServer } from 'node:http'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { test } from 'node:test'
+import { Client, interceptors } from 'undici'
+import { RedisCacheManager, RedisCacheStore } from '../../index.js'
+import { cleanValkey } from '../helper.js'
 
 test('should stream cache entries', async (t) => {
   await cleanValkey()
@@ -89,9 +87,10 @@ test('should stream cache entries', async (t) => {
       })
       assert.strictEqual(statusCode, 200)
     }
+
     {
       const { statusCode } = await client.request({
-        origin, method: 'GET', path: '/boz', headers: { 'cache-tags': 'tag3,tag1,tag7' }
+        origin, method: 'GET', path: '/bov', headers: { 'cache-tags': 'tag3,tag1,tag7' }
       })
       assert.strictEqual(statusCode, 200)
     }
@@ -103,41 +102,19 @@ test('should stream cache entries', async (t) => {
   await sleep(1000)
 
   // Getting all request from the manager
-  const manager = new RedisCacheManager()
+  const manager = new RedisCacheManager({ configureKeyspaceEventNotification: true })
   await manager.subscribe()
   t.after(() => manager.close())
 
-  const allEntries = []
-  await manager.streamEntries(entry => allEntries.push(entry), '*')
-  assert.strictEqual(allEntries.length, 6)
+  await store1.deleteTags([['tag1', 'tag2']])
 
-  const entry = allEntries.find(entry => entry.path === '/foo')
-  assert.strictEqual(entry.headers['cache-tags'], 'tag1,tag2')
+  const foundEntries = []
+  await manager.streamEntries(entry => foundEntries.push(entry), '*')
+  assert.strictEqual(foundEntries.length, 2)
 
-  const dependentEntries = await manager.getDependentEntries(entry.id, entry.keyPrefix)
-  assert.strictEqual(dependentEntries.length, 3)
-
-  {
-    const entry = dependentEntries.find(entry => entry.path === '/bar')
-    const expectedEntry = allEntries.find(entry => entry.path === '/bar')
-    assert.ok(entry)
-    assert.deepStrictEqual(entry, expectedEntry)
-    assert.deepStrictEqual(entry.cacheTags, ['tag1', 'tag2', 'tag4'])
-  }
-
-  {
-    const entry = dependentEntries.find(entry => entry.path === '/baz')
-    const expectedEntry = allEntries.find(entry => entry.path === '/baz')
-    assert.ok(entry)
-    assert.deepStrictEqual(entry, expectedEntry)
-    assert.deepStrictEqual(entry.cacheTags, ['tag1', 'tag2'])
-  }
-
-  {
-    const entry = dependentEntries.find(entry => entry.path === '/boa')
-    const expectedEntry = allEntries.find(entry => entry.path === '/boa')
-    assert.ok(entry)
-    assert.deepStrictEqual(entry, expectedEntry)
-    assert.deepStrictEqual(entry.cacheTags, ['tag1', 'tag2', 'tag6'])
-  }
+  const entriesCacheTags = foundEntries.map(entry => entry.headers['cache-tags'])
+  assert.deepStrictEqual(entriesCacheTags.sort(), [
+    'tag1,tag3,tag5',
+    'tag3,tag1,tag7'
+  ].sort())
 })

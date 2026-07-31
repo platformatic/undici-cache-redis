@@ -87,6 +87,27 @@ node benchmarks/bench-proxy-memory-cache.js  # Test proxy with in-memory cache
 node benchmarks/bench-proxy-redis-cache.js   # Test proxy with Redis cache
 ```
 
+### V1 SCAN vs V2 Index Lookup
+
+```bash
+npm run bench:scan-vs-index
+```
+
+This benchmark measures the specific lookup-path improvement targeted by V2:
+
+- V1 lookup scans `metadata:{origin}:{path}:{method}:*`.
+- V2 lookup reads the indexed `data:v2:resource:{resourceHash}` sorted set.
+- The benchmark seeds unrelated Redis keys to model larger Redis databases.
+- The benchmark seeds multiple `Vary` variants for the same resource.
+
+Useful parameters:
+
+```bash
+UNRELATED_KEYS=100000 LOOKUPS=1000 VARIANTS=16 npm run bench:scan-vs-index
+```
+
+Output is JSON with average, p50, p95, and p99 lookup timings for V1 and V2.
+
 ## Benchmark Scenarios
 
 ### 1. No Cache (`bench-proxy-no-cache.js`)
@@ -168,7 +189,10 @@ CACHE_TYPE=redis PROXY_PORT=8080 node proxy-server.js
 
 ### Redis Cache Options
 ```javascript
-const redisCacheStore = new RedisCacheStore({
+import { createStore } from 'undici-cache-redis'
+
+const redisCacheStore = createStore({
+  prefix: 'bench:cache',
   clientOpts: {
     host: 'localhost',
     port: 6379

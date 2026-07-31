@@ -1,8 +1,6 @@
-'use strict'
-
-const { Agent, interceptors, setGlobalDispatcher } = require('undici')
-const { RedisCacheStore, RedisCacheManager } = require('../index.js')
-const { promisify } = require('util')
+import { promisify } from 'node:util'
+import { Agent, interceptors, setGlobalDispatcher } from 'undici'
+import { RedisCacheManager, RedisCacheStore } from '../index.js'
 
 const sleep = promisify(setTimeout)
 const API_BASE_URL = 'http://localhost:3000'

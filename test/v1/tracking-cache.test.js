@@ -1,8 +1,6 @@
-'use strict'
-
-const { test } = require('node:test')
-const { strictEqual, deepStrictEqual } = require('node:assert')
-const TrackingCache = require('../lib/tracking-cache')
+import { deepStrictEqual, strictEqual } from 'node:assert'
+import { test } from 'node:test'
+import TrackingCache from '../../src/v1/tracking-cache.js'
 
 test('should override cache entries', async () => {
   const cache = new TrackingCache()

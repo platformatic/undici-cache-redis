@@ -1,8 +1,7 @@
-'use strict'
+import { pathToFileURL } from 'node:url'
+import { runProxyBenchmark } from './benchmark-utils.js'
 
-const { runProxyBenchmark } = require('./benchmark-utils')
-
-async function benchmarkProxyRedisOnlyCache () {
+export default async function benchmarkProxyRedisOnlyCache () {
   const result = await runProxyBenchmark({
     cacheType: 'redis-only',
     proxyPort: 3003,
@@ -14,8 +13,6 @@ async function benchmarkProxyRedisOnlyCache () {
   return result
 }
 
-if (require.main === module) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   benchmarkProxyRedisOnlyCache().catch(console.error)
 }
-
-module.exports = benchmarkProxyRedisOnlyCache

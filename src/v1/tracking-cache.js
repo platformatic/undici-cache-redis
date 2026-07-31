@@ -1,8 +1,8 @@
-'use strict'
+import lruMap from 'lru_map'
 
-const { LRUMap } = require('lru_map')
+const { LRUMap } = lruMap
 
-class TrackingCache {
+export default class TrackingCache {
   /**
    * @type {LRUMap}
    */
@@ -163,5 +163,3 @@ function serializeTackingMetadataKey (key) {
   const encodedPath = encodeURIComponent(path)
   return `${encodedOrigin}:${encodedPath}:${method}`
 }
-
-module.exports = TrackingCache

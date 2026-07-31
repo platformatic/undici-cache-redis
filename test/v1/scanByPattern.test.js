@@ -1,9 +1,7 @@
 // @ts-check
-'use strict'
-
-const { test } = require('node:test')
-const { _scanByPattern: scanByPattern } = require('../lib/redis-cache-store.js')
-const { ok, fail, deepStrictEqual, strictEqual } = require('node:assert')
+import { deepStrictEqual, fail, ok, strictEqual } from 'node:assert'
+import { test } from 'node:test'
+import { _scanByPattern as scanByPattern } from '../../src/v1/redis-cache-store.js'
 
 test('scanByPattern calls callback for matching keys and handles errors', async () => {
   // Mock Redis scan behavior
