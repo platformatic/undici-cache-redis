@@ -1,7 +1,7 @@
 'use strict'
 
 const { test } = require('node:test')
-const { strictEqual, deepStrictEqual } = require('node:assert')
+const { strictEqual, deepStrictEqual, notStrictEqual } = require('node:assert')
 const TrackingCache = require('../lib/tracking-cache')
 
 test('should override cache entries', async () => {
@@ -188,6 +188,21 @@ test('should not return expired entries', async () => {
   strictEqual(cache.get(entry.key), undefined)
   strictEqual(cache.count, 0)
   strictEqual(cache.size, 0)
+})
+
+test('should only change the version of invalidated groups', async () => {
+  const cache = new TrackingCache()
+  const version = cache.version('group')
+
+  cache.deleteGroup('other')
+  strictEqual(cache.version('group'), version)
+
+  cache.deleteGroup('group')
+  const invalidated = cache.version('group')
+  notStrictEqual(invalidated, version)
+
+  cache.clear()
+  notStrictEqual(cache.version('group'), invalidated)
 })
 
 function generateCacheEntry ({ id, origin, body, metadata }) {

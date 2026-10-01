@@ -163,6 +163,9 @@ const responseBody = await manager.getResponseById('entry-id', 'my-app:cache:')
 
 ```typescript
 interface RedisCacheStoreOpts {
+  // Use an existing iovalkey client (not closed by close())
+  client?: Redis
+
   // Redis client options (passed to iovalkey)
   clientOpts?: {
     host?: string
@@ -377,12 +380,25 @@ graph TB
 
 The library uses a structured approach to Redis keys:
 
-- **Metadata keys**: `{prefix}metadata:{origin}:{path}:{method}:{id}`
-- **Value keys**: `{prefix}values:{id}`
+- **Index keys**: `{prefix}index:{urlHash}` - one hash per origin + path, with one field per method and Vary variant
+- **Value keys**: `{prefix}values:{urlHash}:{id}`
+- **Metadata keys**: `{prefix}metadata:{urlHash}:{origin}:{path}:{method}:{id}`
 - **ID keys**: `{prefix}ids:{id}`
-- **Tag keys**: `{prefix}cache-tags:{tag1}:{tag2}:{id}`
+- **Tag keys**: `{prefix}cache-tags:{urlHash}:{tag1}:{tag2}:{id}`
+- **Tag index keys**: `{prefix}tag-index:{tagHash}` - a set of the index fields that have the tag
 
-Where `{prefix}` is your configured `keyPrefix` and `{id}` is a UUID for each cache entry.
+Where `{prefix}` is your configured `keyPrefix`. The braced `{urlHash}` lets the store map key invalidations back to a URL, and works as a Valkey/Redis Cluster hash tag. Entry IDs are derived from the URL, method and Vary values unless an explicit `key.id` is supplied, so writing the same variant again overwrites it in place.
+
+A lookup reads the index of a single URL (`HGETALL`) and then the selected value (`GET`). It never uses `SCAN` or `KEYS`, so its cost depends on the number of variants of that URL, not on the size of the database. Vary header names are normalized to lower case, request header matching is case-insensitive, `Vary: *` responses are not cached, and when several variants match the most specific one is returned.
+
+`delete()`, `deleteKeys()` and `deleteTags()` also use the indexes instead of scanning. `RedisCacheManager` still scans for its maintenance operations (`streamEntries()`, `getDependentEntries()` and cross-prefix invalidation).
+
+Index and tag index keys expire together with their longest-lived entry, and expired variants are removed from the index when the URL is written again.
+
+### Migration Notes
+
+Entries written by previous versions are not indexed, so lookups don't find them. Flush the cache when upgrading, or let the old entries expire.
+
 
 ## Cache Invalidation Flow
 
@@ -461,10 +477,11 @@ flowchart TD
 
 ## Performance Considerations
 
-1. **Client-side Tracking**: Enabled by default, provides in-memory caching of metadata
-2. **Pipeline Operations**: Uses Redis pipelining for batch operations
-3. **Binary Data**: Efficiently handles binary responses with base64 encoding
-4. **Memory Management**: Configurable size limits prevent memory exhaustion
+1. **Client-side Tracking**: Enabled by default, serves repeated lookups from memory and is invalidated by the server
+2. **Indexed Lookups**: A lookup is two commands, independent of the database size
+3. **Pipeline Operations**: Commands are auto-pipelined
+4. **Binary Data**: Efficiently handles binary responses with base64 encoding
+5. **Memory Management**: Configurable size limits prevent memory exhaustion
 
 ## API Reference
 
@@ -544,7 +561,7 @@ const manager = new RedisCacheManager({
 ## Requirements
 
 - Node.js >= 20
-- Redis >= 6.0 or Valkey >= 7.2
+- Redis >= 7.0 or Valkey >= 7.2, with `EVAL` allowed (used to drop expired variants safely)
 - Undici >= 7.0
 
 ## License
@@ -582,6 +599,7 @@ The benchmarks test a realistic proxy server architecture:
 Expected results show **10-15x performance improvement** with caching enabled.
 
 For detailed benchmarking instructions, see [benchmarks/README.md](./benchmarks/README.md).
+
 ## Contributing
 
 This project is part of the Platformatic ecosystem. For contributing guidelines, please refer to the main [Platformatic repository](https://github.com/platformatic/platformatic).
