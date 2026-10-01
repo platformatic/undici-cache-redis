@@ -1,6 +1,7 @@
 'use strict'
 
-const { RedisCacheStore, RedisCacheManager } = require('./lib/redis-cache-store')
+const RedisCacheStore = require('./lib/redis-cache-store')
+const RedisCacheManager = require('./lib/redis-cache-manager')
 
 module.exports = RedisCacheStore
 module.exports.RedisCacheStore = RedisCacheStore
