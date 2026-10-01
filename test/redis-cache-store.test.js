@@ -554,6 +554,57 @@ function cacheStoreTests (CacheStore) {
     strictEqual(await scanCalls(), before)
   })
 
+  test('keeps all keys read by get() in the same cluster slot', async (t) => {
+    await cleanValkey()
+
+    const keyPrefix = `${crypto.randomUUID()}:`
+    const request = {
+      origin: 'http://test-origin-1',
+      path: '/foo?bar=baz',
+      method: 'GET',
+      headers: {}
+    }
+    const requestValue = {
+      statusCode: 200,
+      statusMessage: '',
+      headers: {
+        'cache-tag': 'cluster'
+      },
+      cachedAt: Date.now(),
+      staleAt: Date.now() + 10000,
+      deleteAt: Date.now() + 20000
+    }
+
+    const store = new CacheStore({
+      clientOpts: { keyPrefix },
+      cacheTagsHeader: 'cache-tag',
+      tracking: false,
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    const writeStream = store.createWriteStream(request, requestValue)
+    writeResponse(writeStream, ['cluster-ready'])
+    await once(writeStream, 'close')
+
+    const keys = await getAllKeys()
+    const indexKey = keys.find(key => key.startsWith(`${keyPrefix}index:`))
+    ok(indexKey)
+
+    const hashTag = indexKey.match(/\{([^}]+)\}/)?.[1]
+    ok(hashTag)
+
+    ok(keys.some(key => key.startsWith(`${keyPrefix}metadata:{${hashTag}}:`)))
+    ok(keys.some(key => key.startsWith(`${keyPrefix}values:{${hashTag}}:`)))
+    ok(keys.some(key => key.startsWith(`${keyPrefix}cache-tags:{${hashTag}}:`)))
+    ok(keys.some(key => key.startsWith(`${keyPrefix}ids:${hashTag}-`)))
+  })
+
   test('uses a provided client and does not close it', async (t) => {
     await cleanValkey()
 
@@ -715,6 +766,54 @@ function cacheStoreTests (CacheStore) {
       strictEqual(await read(store, 'en'), 'en-v2')
       await store.deleteTags(['x'])
       strictEqual(await read(store, 'en'), undefined)
+    })
+  })
+
+  test('accepts top-level keyPrefix without passing it to the client', async (t) => {
+    await cleanValkey()
+
+    const keyPrefix = `${crypto.randomUUID()}:`
+    const request = {
+      origin: 'http://test-origin-1',
+      path: '/foo?bar=baz',
+      method: 'GET',
+      headers: {}
+    }
+    const requestValue = {
+      statusCode: 200,
+      statusMessage: '',
+      headers: { 'cache-tag': 'foo' },
+      cachedAt: Date.now(),
+      staleAt: Date.now() + 10000,
+      deleteAt: Date.now() + 20000
+    }
+
+    const store = new CacheStore({
+      keyPrefix,
+      cacheTagsHeader: 'cache-tag',
+      tracking: false,
+      errorCallback: (err) => {
+        fail(err)
+      }
+    })
+
+    t.after(async () => {
+      await store.close()
+    })
+
+    const writeStream = store.createWriteStream(request, requestValue)
+    writeResponse(writeStream, ['prefixed'])
+    await once(writeStream, 'close')
+
+    const keys = await getAllKeys()
+    ok(keys.length > 0)
+    ok(keys.every(key => key.startsWith(keyPrefix)))
+
+    const readStream = await store.get(structuredClone(request))
+    notEqual(readStream, undefined)
+    deepStrictEqual(await readResponse(readStream), {
+      ...requestValue,
+      body: ['prefixed']
     })
   })
 

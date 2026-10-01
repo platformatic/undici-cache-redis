@@ -39,6 +39,9 @@ npm test
 # Start Valkey containers for testing
 npm run valkey
 
+# Run the cluster tests (requires the valkey-cluster container)
+npm run test:cluster
+
 # Run TypeScript type checking
 npm run test:typescript
 ```
@@ -83,6 +86,7 @@ Tests require a running Redis/Valkey instance. The project includes Docker Compo
 - `plain-valkey` on port 6379 (default test target)
 - `preconfigured-valkey` on port 6389 (with custom config)
 - `misconfigured-valkey` on port 6399 (for testing error scenarios)
+- `valkey-cluster` on ports 7000-7002 (three-master cluster for `npm run test:cluster`)
 
 Test helper functions are available in test/helper.js:8 for Redis cleanup and data compression utilities.
 

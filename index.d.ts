@@ -1,5 +1,5 @@
 import { EventEmitter, Writable } from "node:stream";
-import { Redis, RedisOptions } from "iovalkey";
+import { Cluster, ClusterNode, ClusterOptions, Redis, RedisOptions } from "iovalkey";
 import { GetResult, CacheKey, CachedResponse } from "./lib/internal-types";
 
 export interface RedisCacheStoreOpts {
@@ -7,9 +7,29 @@ export interface RedisCacheStoreOpts {
 
   /**
    * Use an existing client instead of creating one. It is not closed by
-   * `close()`.
+   * `close()`. Pass a `Cluster` instance to use Valkey/Redis Cluster.
    */
-  client?: Redis
+  client?: Redis | Cluster
+
+  /**
+   * Defaults to "cluster" when `clusterUrl` or `startupNodes` is set.
+   */
+  mode?: "standalone" | "cluster" | "auto"
+
+  /**
+   * Single Valkey/Redis Cluster endpoint. This can be an AWS ElastiCache
+   * configuration endpoint host or a redis:// / rediss:// URL.
+   */
+  clusterUrl?: string
+
+  startupNodes?: ClusterNode | ClusterNode[]
+
+  clusterOptions?: ClusterOptions
+
+  /**
+   * Prefix added to every key. Defaults to `clientOpts.keyPrefix`.
+   */
+  keyPrefix?: string
 
   clientOpts?: RedisOptions
   
@@ -20,7 +40,7 @@ export interface RedisCacheStoreOpts {
   maxCount?: number
   
   /**
-   * Redis client-side caching
+   * Redis client-side caching. Not available in cluster mode.
    * @see https://redis.io/docs/latest/develop/reference/client-side-caching/
    * @default true
    */

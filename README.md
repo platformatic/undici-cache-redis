@@ -163,8 +163,22 @@ const responseBody = await manager.getResponseById('entry-id', 'my-app:cache:')
 
 ```typescript
 interface RedisCacheStoreOpts {
-  // Use an existing iovalkey client (not closed by close())
-  client?: Redis
+  // Use an existing iovalkey Redis or Cluster client (not closed by close())
+  client?: Redis | Cluster
+
+  // Defaults to "cluster" when clusterUrl or startupNodes is set
+  mode?: "standalone" | "cluster" | "auto"
+
+  // Valkey/Redis Cluster endpoint. Can be an AWS ElastiCache
+  // configuration endpoint host or redis:// / rediss:// URL.
+  clusterUrl?: string
+
+  // Valkey/Redis Cluster startup nodes and iovalkey cluster options
+  startupNodes?: ClusterNode | ClusterNode[]
+  clusterOptions?: ClusterOptions
+
+  // Prefix applied by this library. Prefer this over clientOpts.keyPrefix.
+  keyPrefix?: string
 
   // Redis client options (passed to iovalkey)
   clientOpts?: {
@@ -183,7 +197,8 @@ interface RedisCacheStoreOpts {
   // Maximum number of entries (for client-side cache)
   maxCount?: number
   
-  // Enable/disable client-side tracking cache (default: true)
+  // Enable/disable client-side tracking cache (default: true, not
+  // available in cluster mode)
   tracking?: boolean
   
   // Header name to read cache tags from responses
@@ -387,13 +402,55 @@ The library uses a structured approach to Redis keys:
 - **Tag keys**: `{prefix}cache-tags:{urlHash}:{tag1}:{tag2}:{id}`
 - **Tag index keys**: `{prefix}tag-index:{tagHash}` - a set of the index fields that have the tag
 
-Where `{prefix}` is your configured `keyPrefix`. The braced `{urlHash}` lets the store map key invalidations back to a URL, and works as a Valkey/Redis Cluster hash tag. Entry IDs are derived from the URL, method and Vary values unless an explicit `key.id` is supplied, so writing the same variant again overwrites it in place.
+Where `{prefix}` is your configured `keyPrefix`. The braced `{urlHash}` is a Valkey/Redis Cluster hash tag, so every key read by a lookup lives in the same slot. Entry IDs are derived from the URL, method and Vary values unless an explicit `key.id` is supplied, so writing the same variant again overwrites it in place.
 
 A lookup reads the index of a single URL (`HGETALL`) and then the selected value (`GET`). It never uses `SCAN` or `KEYS`, so its cost depends on the number of variants of that URL, not on the size of the database. Vary header names are normalized to lower case, request header matching is case-insensitive, `Vary: *` responses are not cached, and when several variants match the most specific one is returned.
 
 `delete()`, `deleteKeys()` and `deleteTags()` also use the indexes instead of scanning. `RedisCacheManager` still scans for its maintenance operations (`streamEntries()`, `getDependentEntries()` and cross-prefix invalidation).
 
 Index and tag index keys expire together with their longest-lived entry, and expired variants are removed from the index when the URL is written again.
+
+### Cluster and Externally Supplied Clients
+
+```javascript
+import { Cluster, Redis } from 'iovalkey'
+import { RedisCacheStore } from 'undici-cache-redis'
+
+// Use an existing client. close() does not quit it.
+const store = new RedisCacheStore({
+  client: new Redis({ host: 'localhost', port: 6379 }),
+  keyPrefix: 'my-app:'
+})
+
+// Valkey/Redis Cluster, discovered from a single endpoint
+const clusterStore = new RedisCacheStore({
+  clusterUrl: 'clustercfg.my-cache.xxxxxx.use1.cache.amazonaws.com:6379',
+  clusterOptions: { scaleReads: 'master' },
+  keyPrefix: 'my-app:'
+})
+
+// ...or from startup nodes, or an existing Cluster client
+const startupNodesStore = new RedisCacheStore({ startupNodes: [{ host: '127.0.0.1', port: 7000 }] })
+const externalClusterStore = new RedisCacheStore({ client: new Cluster([{ host: '127.0.0.1', port: 7000 }]) })
+```
+
+Client-side tracking is disabled in cluster mode, because tracking invalidations are delivered per node. With a standalone `client`, tracking is enabled on that connection, so pass `tracking: false` if the client is shared with code that should not be tracked.
+
+`npm run test:cluster` runs the store against the local three-node cluster started by `npm run valkey`.
+
+For AWS ElastiCache with cluster mode enabled, pass the configuration endpoint as `clusterUrl`. Use a `rediss://` URL or `clientOpts.tls` when in-transit encryption is enabled:
+
+```javascript
+const store = new RedisCacheStore({
+  clusterUrl: 'rediss://clustercfg.my-cache.xxxxxx.use1.cache.amazonaws.com:6379',
+  keyPrefix: 'my-service:cache:',
+  clientOpts: {
+    username: 'default',
+    password: process.env.ELASTICACHE_AUTH_TOKEN,
+    tls: {}
+  }
+})
+```
 
 ### Migration Notes
 
@@ -478,7 +535,7 @@ flowchart TD
 ## Performance Considerations
 
 1. **Client-side Tracking**: Enabled by default, serves repeated lookups from memory and is invalidated by the server
-2. **Indexed Lookups**: A lookup is two commands, independent of the database size
+2. **Indexed Lookups**: A lookup is two commands on one slot, independent of the database size
 3. **Pipeline Operations**: Commands are auto-pipelined
 4. **Binary Data**: Efficiently handles binary responses with base64 encoding
 5. **Memory Management**: Configurable size limits prevent memory exhaustion
