@@ -9,7 +9,7 @@ This is `undici-cache-redis`, a Redis-backed cache store for Undici's cache inte
 ### Core Architecture
 
 - **RedisCacheStore** (lib/redis-cache-store.js:46): Main cache store implementation that implements Undici's cache store interface
-- **RedisCacheManager** (lib/redis-cache-store.js:665): Management interface for cache operations and monitoring
+- **RedisCacheManager** (lib/redis-cache-manager.js): Management interface for cache operations and monitoring
 - **TrackingCache** (lib/tracking-cache.js:5): In-memory LRU cache for client-side tracking to reduce Redis round trips
 
 The architecture uses a dual-layer caching approach:

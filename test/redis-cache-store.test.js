@@ -5,7 +5,7 @@ const { describe, test } = require('node:test')
 const { strictEqual, deepStrictEqual, notEqual, equal, fail, ok } = require('node:assert')
 const { Readable } = require('node:stream')
 const { once } = require('node:events')
-const { RedisCacheStore } = require('../lib/redis-cache-store')
+const RedisCacheStore = require('../lib/redis-cache-store')
 const { getAllKeys, cleanValkey } = require('./helper.js')
 const { setTimeout: sleep } = require('node:timers/promises')
 
