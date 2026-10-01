@@ -25,6 +25,39 @@ function cacheStoreTests (CacheStore) {
       equal(typeof store.delete, 'function')
     })
 
+    test('write stream fails when the write to redis fails', async (t) => {
+      const reportedErrors = []
+      const store = new CacheStore({
+        clientOpts: { port: 1, retryStrategy: () => null, maxRetriesPerRequest: 0 },
+        tracking: false,
+        errorCallback: err => {
+          reportedErrors.push(err)
+        }
+      })
+      t.after(() => store.close())
+
+      const writeStream = store.createWriteStream({
+        origin: 'localhost',
+        path: '/',
+        method: 'GET',
+        headers: {}
+      }, {
+        statusCode: 200,
+        statusMessage: '',
+        headers: {},
+        cacheControlDirectives: {},
+        cachedAt: Date.now(),
+        staleAt: Date.now() + 10000,
+        deleteAt: Date.now() + 20000
+      })
+
+      writeStream.end(Buffer.from('body'))
+      const [streamError] = await once(writeStream, 'error')
+
+      deepStrictEqual(reportedErrors, [streamError])
+      strictEqual(writeStream.destroyed, true)
+    })
+
     // Checks that it can store & fetch different responses
     test('basic functionality', async (t) => {
       await cleanValkey()
