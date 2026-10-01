@@ -600,6 +600,13 @@ Expected results show **10-15x performance improvement** with caching enabled.
 
 For detailed benchmarking instructions, see [benchmarks/README.md](./benchmarks/README.md).
 
+To measure the store alone, against a database that also holds unrelated keys, with one or several processes sharing the same hot URLs like the replicas of a deployment:
+
+```bash
+node benchmarks/pods.js --pods 1 --concurrency 64 [--tracking off]
+node benchmarks/pods.js --pods 4 --ratios 0.2,0.45,0.75,0.95
+```
+
 ## Contributing
 
 This project is part of the Platformatic ecosystem. For contributing guidelines, please refer to the main [Platformatic repository](https://github.com/platformatic/platformatic).
