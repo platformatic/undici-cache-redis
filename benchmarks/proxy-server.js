@@ -1,8 +1,6 @@
-'use strict'
-
-const fastify = require('fastify')
-const { Agent, interceptors } = require('undici')
-const { RedisCacheStore } = require('../index.js')
+import fastify from 'fastify'
+import { Agent, interceptors } from 'undici'
+import { RedisCacheStore } from '../index.js'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000'
 const PORT = process.env.PROXY_PORT || 3001

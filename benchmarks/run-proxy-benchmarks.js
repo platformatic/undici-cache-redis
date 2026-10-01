@@ -1,9 +1,8 @@
-'use strict'
-
-const benchProxyNoCache = require('./bench-proxy-no-cache')
-const benchProxyMemoryCache = require('./bench-proxy-memory-cache')
-const benchProxyRedisOnlyCache = require('./bench-proxy-redis-cache-only')
-const benchProxyRedisTrackingCache = require('./bench-proxy-redis-cache-tracking')
+import { pathToFileURL } from 'node:url'
+import benchProxyMemoryCache from './bench-proxy-memory-cache.js'
+import benchProxyNoCache from './bench-proxy-no-cache.js'
+import benchProxyRedisOnlyCache from './bench-proxy-redis-cache-only.js'
+import benchProxyRedisTrackingCache from './bench-proxy-redis-cache-tracking.js'
 
 function formatValue (value, decimals = 2) {
   return value ? value.toFixed(decimals) : 'N/A'
@@ -19,7 +18,7 @@ function calculateReduction (baseline, current) {
   return (((baseline - current) / baseline) * 100).toFixed(1)
 }
 
-async function runAllBenchmarks () {
+export default async function runAllBenchmarks () {
   console.log('🚀 Running All Proxy Benchmarks')
   console.log('='.repeat(60))
   console.log('Architecture: Autocannon -> Server FOO (proxy) -> Server Bar (backend)')
@@ -120,8 +119,6 @@ async function runAllBenchmarks () {
   }
 }
 
-if (require.main === module) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   runAllBenchmarks()
 }
-
-module.exports = runAllBenchmarks

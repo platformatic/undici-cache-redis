@@ -1,7 +1,5 @@
-'use strict'
-
-const fastify = require('fastify')
-const sleep = require('atomic-sleep')
+import sleep from 'atomic-sleep'
+import fastify from 'fastify'
 
 const app = fastify()
 

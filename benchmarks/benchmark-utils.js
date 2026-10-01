@@ -1,8 +1,6 @@
-'use strict'
-
-const autocannon = require('autocannon')
-const { spawn } = require('child_process')
-const { RedisCacheStore } = require('../index.js')
+import autocannon from 'autocannon'
+import { spawn } from 'node:child_process'
+import { RedisCacheStore } from '../index.js'
 
 const BACKEND_URL = 'http://localhost:3000'
 const DEFAULT_REQUESTS = [
@@ -22,7 +20,7 @@ for (let i = 1; i <= 500; i++) {
   KEYS_TO_DELETE.push({ origin: BACKEND_URL, method: 'GET', path: `/api/products/${i}` })
 }
 
-async function waitForServer (url, maxAttempts = 30) {
+export async function waitForServer (url, maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const response = await fetch(`${url}/health`)
@@ -37,7 +35,7 @@ async function waitForServer (url, maxAttempts = 30) {
   throw new Error(`Server failed to start at ${url}`)
 }
 
-async function clearRedisCache () {
+export async function clearRedisCache () {
   try {
     const redisCacheStore = new RedisCacheStore({
       clientOpts: {
@@ -54,7 +52,7 @@ async function clearRedisCache () {
   }
 }
 
-async function warmupCache (proxyUrl) {
+export async function warmupCache (proxyUrl) {
   try {
     // Use fetch to warm up through the proxy which should use the same cache
     for (const request of DEFAULT_REQUESTS) {
@@ -70,7 +68,7 @@ async function warmupCache (proxyUrl) {
   }
 }
 
-function formatResults (result, scenarioName) {
+export function formatResults (result, scenarioName) {
   return `
 Results (${scenarioName}):
   Requests/sec: ${result.requests.average}
@@ -82,7 +80,7 @@ Results (${scenarioName}):
   `
 }
 
-async function runProxyBenchmark (options = {}) {
+export async function runProxyBenchmark (options = {}) {
   const {
     cacheType = 'none',
     proxyPort = 3001,
@@ -147,12 +145,4 @@ async function runProxyBenchmark (options = {}) {
   }
 }
 
-module.exports = {
-  runProxyBenchmark,
-  waitForServer,
-  clearRedisCache,
-  warmupCache,
-  formatResults,
-  DEFAULT_REQUESTS,
-  BACKEND_URL
-}
+export { BACKEND_URL, DEFAULT_REQUESTS }

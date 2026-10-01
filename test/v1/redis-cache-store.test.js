@@ -1,13 +1,11 @@
 // @ts-check
-'use strict'
-
-const { describe, test } = require('node:test')
-const { strictEqual, deepStrictEqual, notEqual, equal, fail, ok } = require('node:assert')
-const { Readable } = require('node:stream')
-const { once } = require('node:events')
-const { RedisCacheStore } = require('../lib/redis-cache-store')
-const { getAllKeys, cleanValkey } = require('./helper.js')
-const { setTimeout: sleep } = require('node:timers/promises')
+import { deepStrictEqual, equal, fail, notEqual, ok, strictEqual } from 'node:assert'
+import { once } from 'node:events'
+import { Readable } from 'node:stream'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { describe, test } from 'node:test'
+import { RedisCacheStore } from '../../src/v1/redis-cache-store.js'
+import { cleanValkey, getAllKeys } from '../helper.js'
 
 cacheStoreTests(RedisCacheStore)
 
@@ -46,7 +44,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['asd', '123']
 
       /**
-       * @type {import('../lib/internal-types.d.ts').CacheStore}
+       * @type {import('../../src/v1/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -139,7 +137,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['part1', 'part2']
 
       /**
-       * @type {import('../lib/internal-types.d.ts').CacheStore}
+       * @type {import('../../src/v1/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -272,7 +270,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['part1', 'part2']
 
       /**
-       * @type {import('../lib/internal-types.d.ts').CacheStore}
+       * @type {import('../../src/v1/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -321,7 +319,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['part1', 'part2']
 
       /**
-       * @type {import('../lib/internal-types.d.ts').CacheStore}
+       * @type {import('../../src/v1/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -386,7 +384,7 @@ function cacheStoreTests (CacheStore) {
       const requestBody = ['part1', 'part2']
 
       /**
-       * @type {import('../lib/internal-types.d.ts').CacheStore}
+       * @type {import('../../src/v1/internal-types.d.ts').CacheStore}
        */
       const store = new CacheStore({
         clientOpts: {
@@ -818,7 +816,7 @@ function cacheStoreTests (CacheStore) {
     const requestBody = ['asd', '123']
 
     /**
-     * @type {import('../lib/internal-types.d.ts').CacheStore}
+      * @type {import('../../src/v1/internal-types.d.ts').CacheStore}
      */
     const store = new CacheStore({
       clientOpts: {
@@ -859,8 +857,8 @@ function writeResponse (stream, body = []) {
 }
 
 /**
- * @param {import('../lib/internal-types.d.ts').GetResult} result
- * @returns {Promise<import('../lib/internal-types.d.ts').GetResult | { body: Buffer[] }>}
+  * @param {import('../../src/v1/internal-types.d.ts').GetResult} result
+  * @returns {Promise<import('../../src/v1/internal-types.d.ts').GetResult | { body: Buffer[] }>}
  */
 async function readResponse ({ body: src, ...response }) {
   notEqual(response, undefined)

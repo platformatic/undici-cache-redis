@@ -1,9 +1,7 @@
-'use strict'
-
-const assert = require('node:assert/strict')
-const { test } = require('node:test')
-const { setTimeout: sleep } = require('node:timers/promises')
-const { spawn } = require('node:child_process')
+import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { test } from 'node:test'
 
 async function waitForServer (url, maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
