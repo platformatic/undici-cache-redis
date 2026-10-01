@@ -477,7 +477,7 @@ flowchart TD
 
 ## Performance Considerations
 
-1. **Client-side Tracking**: Enabled by default, serves repeated lookups from memory and is invalidated by the server
+1. **Client-side Tracking**: Enabled by default, serves repeated lookups from memory, including misses for URLs with nothing cached, and is invalidated by the server
 2. **Indexed Lookups**: A lookup is two commands, independent of the database size
 3. **Pipeline Operations**: Commands are auto-pipelined
 4. **Binary Data**: Efficiently handles binary responses with base64 encoding

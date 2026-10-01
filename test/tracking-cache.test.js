@@ -205,6 +205,26 @@ test('should only change the version of invalidated groups', async () => {
   notStrictEqual(cache.version('group'), invalidated)
 })
 
+test('should remember misses until the group changes', async () => {
+  const cache = new TrackingCache()
+  const entry = generateCacheEntry({ id: 'entry1' })
+
+  strictEqual(cache.hasMiss('group'), false)
+  cache.setMiss('group')
+  strictEqual(cache.hasMiss('group'), true)
+
+  cache.deleteGroup('group')
+  strictEqual(cache.hasMiss('group'), false)
+
+  cache.setMiss('group')
+  cache.set(entry.key, entry.metadata, entry.value, 'group')
+  strictEqual(cache.hasMiss('group'), false)
+
+  cache.setMiss('group')
+  cache.clear()
+  strictEqual(cache.hasMiss('group'), false)
+})
+
 function generateCacheEntry ({ id, origin, body, metadata }) {
   id = id ?? Math.random().toString(36).slice(2)
   origin = origin ?? 'http://test.com'

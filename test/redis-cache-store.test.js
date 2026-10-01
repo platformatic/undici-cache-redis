@@ -868,6 +868,61 @@ function cacheStoreTests (CacheStore) {
     notEqual(await stores[1].get(request), undefined)
   })
 
+  test('tracking cache remembers misses until the URL is written', async (t) => {
+    await cleanValkey()
+
+    const keyPrefix = `${crypto.randomUUID()}:`
+    const redis = new Redis()
+    const opts = {
+      keyPrefix,
+      errorCallback: (err) => {
+        fail(err)
+      }
+    }
+    const reader = new CacheStore(opts)
+    const writer = new CacheStore({ ...opts, tracking: false })
+
+    t.after(async () => {
+      await reader.close()
+      await writer.close()
+      await redis.quit()
+    })
+
+    const request = {
+      origin: 'http://test-origin-1',
+      path: '/',
+      method: 'GET',
+      headers: {}
+    }
+
+    const hgetallCalls = async () => {
+      const stats = await redis.info('commandstats')
+      return Number(stats.match(/cmdstat_hgetall:calls=(\d+)/)?.[1] ?? 0)
+    }
+
+    // Wait for tracking to be enabled
+    await sleep(100)
+
+    strictEqual(await reader.get(request), undefined)
+    const calls = await hgetallCalls()
+    strictEqual(await reader.get(request), undefined)
+    strictEqual(await hgetallCalls(), calls, 'the second miss is answered locally')
+
+    const writeStream = writer.createWriteStream(request, {
+      statusCode: 200,
+      statusMessage: '',
+      headers: {},
+      cachedAt: Date.now(),
+      staleAt: Date.now() + 10000,
+      deleteAt: Date.now() + 20000
+    })
+    writeResponse(writeStream, ['body'])
+    await once(writeStream, 'close')
+    await sleep(100)
+
+    deepStrictEqual((await readResponse(await reader.get(request))).body, ['body'])
+  })
+
   test('tracking cache keeps working after connections are lost', async (t) => {
     await cleanValkey()
 
