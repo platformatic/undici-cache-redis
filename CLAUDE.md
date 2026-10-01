@@ -8,9 +8,12 @@ This is `undici-cache-redis`, a Redis-backed cache store for Undici's cache inte
 
 ### Core Architecture
 
-- **RedisCacheStore** (lib/redis-cache-store.js:46): Main cache store implementation that implements Undici's cache store interface
-- **RedisCacheManager** (lib/redis-cache-store.js:665): Management interface for cache operations and monitoring
-- **TrackingCache** (lib/tracking-cache.js:5): In-memory LRU cache for client-side tracking to reduce Redis round trips
+- **RedisCacheStore** (lib/redis-cache-store.js): Main cache store implementation that implements Undici's cache store interface
+- **RedisCacheManager** (lib/redis-cache-manager.js): Management interface for cache operations and monitoring
+- **TrackingCache** (lib/tracking-cache.js): In-memory LRU cache for client-side tracking to reduce Redis round trips
+- **lib/entries.js**: Reads and writes the Redis keys of cache entries, shared by the store and the manager
+- **lib/keys.js**: The key layout, and the functions that build and parse keys
+- **lib/vary.js**: Vary normalization and matching
 
 The architecture uses a dual-layer caching approach:
 1. Optional client-side tracking cache (TrackingCache) for frequently accessed items
@@ -18,11 +21,13 @@ The architecture uses a dual-layer caching approach:
 
 ### Key Storage Patterns
 
-The cache uses structured Redis keys:
-- `metadata:{origin}:{path}:{method}:{id}` - Cache entry metadata
-- `values:{id}` - Actual cached response data
+The cache uses structured Redis keys (`{u}` is a hash of origin + path, used as the Cluster hash tag):
+- `index:{u}` - Hash with one field per method and Vary variant; lookups read only this and the value
+- `values:{u}:{id}` - Actual cached response data
+- `metadata:{u}:{origin}:{path}:{method}:{id}` - Cache entry metadata, used by RedisCacheManager
 - `ids:{id}` - ID-to-metadata mapping
-- `cache-tags:{tags}:{id}` - Tag-based invalidation support
+- `cache-tags:{u}:{tags}:{id}` - Tag keys watched by RedisCacheManager
+- `tag-index:{tagHash}` - Set of index fields with the tag, used by `deleteTags()`
 
 ## Development Commands
 
@@ -33,6 +38,9 @@ npm test
 
 # Start Valkey containers for testing
 npm run valkey
+
+# Run the cluster tests (requires the valkey-cluster container)
+npm run test:cluster
 
 # Run TypeScript type checking
 npm run test:typescript
@@ -78,6 +86,7 @@ Tests require a running Redis/Valkey instance. The project includes Docker Compo
 - `plain-valkey` on port 6379 (default test target)
 - `preconfigured-valkey` on port 6389 (with custom config)
 - `misconfigured-valkey` on port 6399 (for testing error scenarios)
+- `valkey-cluster` on ports 7000-7002 (three-master cluster for `npm run test:cluster`)
 
 Test helper functions are available in test/helper.js:8 for Redis cleanup and data compression utilities.
 

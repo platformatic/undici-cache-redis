@@ -23,3 +23,20 @@ services:
     command:
       - valkey-server
       - /usr/local/etc/valkey/valkey.conf
+
+  # Three-master cluster in one container, so that the node addresses it
+  # announces (127.0.0.1:7000-7002) also work from the host
+  valkey-cluster:
+    ports:
+      - "127.0.0.1:7000-7002:7000-7002"
+    image: "valkey/valkey:9.1"
+    command:
+      - sh
+      - -c
+      - |
+        for port in 7000 7001 7002; do
+          valkey-server --port $$port --cluster-enabled yes --cluster-config-file nodes-$$port.conf --protected-mode no --save '' --daemonize yes
+        done
+        sleep 1
+        valkey-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 --cluster-replicas 0 --cluster-yes || true
+        tail -f /dev/null

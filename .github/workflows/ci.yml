@@ -109,6 +109,9 @@ jobs:
       - name: Run Integration Tests
         run: npm run test
 
+      - name: Run Cluster Tests
+        run: npm run test:cluster
+
       - name: Shutdown Valkey services
         run: docker compose down
 

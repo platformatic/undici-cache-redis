@@ -1,7 +1,7 @@
 'use strict'
 
 const { test } = require('node:test')
-const { strictEqual, deepStrictEqual } = require('node:assert')
+const { strictEqual, deepStrictEqual, notStrictEqual } = require('node:assert')
 const TrackingCache = require('../lib/tracking-cache')
 
 test('should override cache entries', async () => {
@@ -141,6 +141,70 @@ test('should respect vary directives', async (t) => {
   })
 })
 
+test('should return the most specific matching vary entry', async () => {
+  const cache = new TrackingCache()
+
+  const entry1 = generateCacheEntry({
+    id: 'entry1',
+    origin: 'http://test.com',
+    body: 'specific'
+  })
+  cache.set(entry1.key, {
+    vary: {
+      'test-header-1': 'foo',
+      'test-header-2': 'foo',
+      'test-header-3': 'foo'
+    }
+  }, entry1.value)
+
+  const entry2 = generateCacheEntry({
+    id: 'entry2',
+    origin: 'http://test.com',
+    body: 'generic'
+  })
+  cache.set(entry2.key, {
+    vary: {
+      'test-header-1': 'foo',
+      'test-header-2': 'foo'
+    }
+  }, entry2.value)
+
+  deepStrictEqual(cache.get({
+    ...entry1.key,
+    headers: {
+      'Test-Header-1': 'foo',
+      'Test-Header-2': 'foo',
+      'Test-Header-3': 'foo'
+    }
+  }), entry1.value)
+})
+
+test('should not return expired entries', async () => {
+  const cache = new TrackingCache()
+
+  const entry = generateCacheEntry({ id: 'entry1' })
+  cache.set(entry.key, entry.metadata, { ...entry.value, deleteAt: Date.now() - 1 })
+
+  strictEqual(cache.get(entry.key), undefined)
+  strictEqual(cache.count, 0)
+  strictEqual(cache.size, 0)
+})
+
+test('should only change the version of invalidated groups', async () => {
+  const cache = new TrackingCache()
+  const version = cache.version('group')
+
+  cache.deleteGroup('other')
+  strictEqual(cache.version('group'), version)
+
+  cache.deleteGroup('group')
+  const invalidated = cache.version('group')
+  notStrictEqual(invalidated, version)
+
+  cache.clear()
+  notStrictEqual(cache.version('group'), invalidated)
+})
+
 function generateCacheEntry ({ id, origin, body, metadata }) {
   id = id ?? Math.random().toString(36).slice(2)
   origin = origin ?? 'http://test.com'
@@ -148,7 +212,7 @@ function generateCacheEntry ({ id, origin, body, metadata }) {
 
   return {
     key: { id, origin, path: '/foo', method: 'GET' },
-    value: { body: [body] },
+    value: { body: [body], deleteAt: Infinity },
     metadata: {},
   }
 }
