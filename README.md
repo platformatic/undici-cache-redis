@@ -163,6 +163,23 @@ const responseBody = await manager.getResponseById('entry-id', 'my-app:cache:')
 
 ```typescript
 interface RedisCacheStoreOpts {
+  // Use an existing iovalkey Redis or Cluster client (not closed by close())
+  client?: Redis | Cluster
+
+  // Defaults to "cluster" when clusterUrl or startupNodes is set
+  mode?: "standalone" | "cluster" | "auto"
+
+  // Valkey/Redis Cluster endpoint. Can be an AWS ElastiCache
+  // configuration endpoint host or redis:// / rediss:// URL.
+  clusterUrl?: string
+
+  // Valkey/Redis Cluster startup nodes and iovalkey cluster options
+  startupNodes?: ClusterNode | ClusterNode[]
+  clusterOptions?: ClusterOptions
+
+  // Prefix applied by this library. Prefer this over clientOpts.keyPrefix.
+  keyPrefix?: string
+
   // Redis client options (passed to iovalkey)
   clientOpts?: {
     host?: string
@@ -180,7 +197,8 @@ interface RedisCacheStoreOpts {
   // Maximum number of entries (for client-side cache)
   maxCount?: number
   
-  // Enable/disable client-side tracking cache (default: true)
+  // Enable/disable client-side tracking cache (default: true, not
+  // available in cluster mode)
   tracking?: boolean
   
   // Header name to read cache tags from responses
@@ -190,6 +208,8 @@ interface RedisCacheStoreOpts {
   errorCallback?: (err: Error) => void
 }
 ```
+
+Cluster URLs promote TLS and URL credentials to every discovered node, not only the startup endpoint. TLS certificates are verified by default; supply a trusted CA through `clusterOptions.redisOptions.tls` when using a private CA. Explicit client options override URL credentials. Only master reads are supported (`scaleReads: 'master'`); replica/random read strategies can serve stale data after invalidation and are rejected, including on provided Cluster clients. Cluster mode uses `ids:{urlHash}:{id}` so all entry keys in atomic scripts share one slot. `RedisCacheManager` remains standalone-only. Tracking and remembered misses are disabled in cluster mode; standalone benchmark numbers do not describe cluster performance.
 
 ### RedisCacheManager Options
 
@@ -377,12 +397,69 @@ graph TB
 
 The library uses a structured approach to Redis keys:
 
-- **Metadata keys**: `{prefix}metadata:{origin}:{path}:{method}:{id}`
-- **Value keys**: `{prefix}values:{id}`
+- **Index keys**: `{prefix}index:{urlHash}` - one hash per origin + path, with one field per method and Vary variant
+- **Value keys**: `{prefix}values:{urlHash}:{id}`
+- **Metadata keys**: `{prefix}metadata:{urlHash}:{origin}:{path}:{method}:{id}`
 - **ID keys**: `{prefix}ids:{id}`
-- **Tag keys**: `{prefix}cache-tags:{tag1}:{tag2}:{id}`
+- **Tag keys**: `{prefix}cache-tags:{urlHash}:{tag1}:{tag2}:{id}`
+- **Tag index keys**: `{prefix}tag-index:v2:{tagHash}` - a sorted set of write-specific memberships, scored by entry expiry
 
-Where `{prefix}` is your configured `keyPrefix` and `{id}` is a UUID for each cache entry.
+Where `{prefix}` is your configured `keyPrefix`. The braced `{urlHash}` is a Valkey/Redis Cluster hash tag, so every key read by a lookup lives in the same slot. Entry IDs are derived from the URL, method and Vary values unless an explicit `key.id` is supplied, so writing the same variant again overwrites it in place.
+
+A lookup reads the index of a single URL (`HGETALL`) and then the selected value (`GET`). It never uses `SCAN` or `KEYS`, so its cost depends on the number of variants of that URL, not on the size of the database. Vary header names are normalized to lower case, request header matching is case-insensitive, `Vary: *` responses are not cached, and when several variants match the most specific one is returned.
+
+`delete()`, `deleteKeys()` and `deleteTags()` also use the indexes instead of scanning. `RedisCacheManager` still scans for its maintenance operations (`streamEntries()`, `getDependentEntries()` and cross-prefix invalidation).
+
+Response values, metadata, ID mappings and URL indexes are published together by a version-checked Redis script. Deletions check the same write version atomically, so a delayed purge cannot delete a newer rewrite. Tag memberships are write-specific and live in separate expiry-scored sorted sets. Every tag write sweeps expired memberships; purges scan incrementally with bounded concurrent lookups. Tag invalidation is not a transaction with writes that are still in flight across separate cluster slots; await writes before purging when that ordering is required.
+
+Index and tag index keys expire together with their longest-lived entry, and expired variants are removed from the index when the URL is written again. Local tracking records the request values for all applicable indexed Vary headers, so a locally cached generic response cannot hide a more specific variant.
+
+### Cluster and Externally Supplied Clients
+
+```javascript
+import { Cluster, Redis } from 'iovalkey'
+import { RedisCacheStore } from 'undici-cache-redis'
+
+// Use an existing client. close() does not quit it.
+const store = new RedisCacheStore({
+  client: new Redis({ host: 'localhost', port: 6379 }),
+  keyPrefix: 'my-app:'
+})
+
+// Valkey/Redis Cluster, discovered from a single endpoint
+const clusterStore = new RedisCacheStore({
+  clusterUrl: 'clustercfg.my-cache.xxxxxx.use1.cache.amazonaws.com:6379',
+  clusterOptions: { scaleReads: 'master' },
+  keyPrefix: 'my-app:'
+})
+
+// ...or from startup nodes, or an existing Cluster client
+const startupNodesStore = new RedisCacheStore({ startupNodes: [{ host: '127.0.0.1', port: 7000 }] })
+const externalClusterStore = new RedisCacheStore({ client: new Cluster([{ host: '127.0.0.1', port: 7000 }]) })
+```
+
+Client-side tracking is disabled in cluster mode, because tracking invalidations are delivered per node. With a standalone `client`, tracking is enabled on that connection, so pass `tracking: false` if the client is shared with code that should not be tracked.
+
+`npm run test:cluster` runs the store against the local three-node cluster started by `npm run valkey`.
+
+For AWS ElastiCache with cluster mode enabled, pass the configuration endpoint as `clusterUrl`. Use a `rediss://` URL or `clientOpts.tls` when in-transit encryption is enabled:
+
+```javascript
+const store = new RedisCacheStore({
+  clusterUrl: 'rediss://clustercfg.my-cache.xxxxxx.use1.cache.amazonaws.com:6379',
+  keyPrefix: 'my-service:cache:',
+  clientOpts: {
+    username: 'default',
+    password: process.env.ELASTICACHE_AUTH_TOKEN,
+    tls: {}
+  }
+})
+```
+
+### Migration Notes
+
+Entries written by previous released versions are not indexed, so lookups do not find them. Let them expire or clear only the cache's namespace. Use a coordinated rollout or a versioned key prefix; old and new clients do not provide coherent shared invalidation during a mixed-version rollout. The expiry-scored tag indexes use a separate `tag-index:v2:` namespace, so earlier set-based indexes can expire without WRONGTYPE errors. This update requires Redis >= 7.0 and EVAL permission; account for this minimum-version change in release policy.
+
 
 ## Cache Invalidation Flow
 
@@ -461,10 +538,11 @@ flowchart TD
 
 ## Performance Considerations
 
-1. **Client-side Tracking**: Enabled by default, provides in-memory caching of metadata
-2. **Pipeline Operations**: Uses Redis pipelining for batch operations
-3. **Binary Data**: Efficiently handles binary responses with base64 encoding
-4. **Memory Management**: Configurable size limits prevent memory exhaustion
+1. **Client-side Tracking**: Standalone deployments reduce Redis round trips through local caching; URL invalidations clear cached results
+2. **Indexed Lookups**: Reads use a URL index and selected response value, independent of the total database size
+3. **Pipeline Operations**: Commands are auto-pipelined
+4. **Binary Data**: Efficiently handles binary responses with base64 encoding
+5. **Memory Management**: Configurable size limits prevent memory exhaustion
 
 ## API Reference
 
@@ -544,7 +622,7 @@ const manager = new RedisCacheManager({
 ## Requirements
 
 - Node.js >= 20
-- Redis >= 6.0 or Valkey >= 7.2
+- Redis >= 7.0 or Valkey >= 7.2, with `EVAL` allowed (used for atomic publication/deletion and expiry-aware tag indexes)
 - Undici >= 7.0
 
 ## License
@@ -582,6 +660,14 @@ The benchmarks test a realistic proxy server architecture:
 Expected results show **10-15x performance improvement** with caching enabled.
 
 For detailed benchmarking instructions, see [benchmarks/README.md](./benchmarks/README.md).
+
+To measure the store alone, against a database that also holds unrelated keys, with one or several processes sharing the same hot URLs like the replicas of a deployment:
+
+```bash
+node benchmarks/pods.js --pods 1 --concurrency 64 [--tracking off]
+node benchmarks/pods.js --pods 4 --ratios 0.2,0.45,0.75,0.95
+```
+
 ## Contributing
 
 This project is part of the Platformatic ecosystem. For contributing guidelines, please refer to the main [Platformatic repository](https://github.com/platformatic/platformatic).

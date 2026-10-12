@@ -1,9 +1,36 @@
 import { EventEmitter, Writable } from "node:stream";
-import { RedisOptions } from "iovalkey";
+import { Cluster, ClusterNode, ClusterOptions, Redis, RedisOptions } from "iovalkey";
 import { GetResult, CacheKey, CachedResponse } from "./lib/internal-types";
 
 export interface RedisCacheStoreOpts {
   clientConfigTracking?: boolean
+
+  /**
+   * Use an existing client instead of creating one. It is not closed by
+   * `close()`. Pass a `Cluster` instance to use Valkey/Redis Cluster.
+   */
+  client?: Redis | Cluster
+
+  /**
+   * Defaults to "cluster" when `clusterUrl` or `startupNodes` is set.
+   */
+  mode?: "standalone" | "cluster" | "auto"
+
+  /**
+   * Single Valkey/Redis Cluster endpoint. This can be an AWS ElastiCache
+   * configuration endpoint host or a redis:// / rediss:// URL.
+   */
+  clusterUrl?: string
+
+  startupNodes?: ClusterNode | ClusterNode[]
+
+  /** Master reads only; TLS/URL credentials apply to all discovered shards. */
+  clusterOptions?: ClusterOptions
+
+  /**
+   * Prefix added to every key. Defaults to `clientOpts.keyPrefix`.
+   */
+  keyPrefix?: string
 
   clientOpts?: RedisOptions
   
@@ -14,7 +41,7 @@ export interface RedisCacheStoreOpts {
   maxCount?: number
   
   /**
-   * Redis client-side caching
+   * Redis client-side caching. Not available in cluster mode.
    * @see https://redis.io/docs/latest/develop/reference/client-side-caching/
    * @default true
    */
@@ -42,7 +69,7 @@ declare class RedisCacheStore extends EventEmitter {
 
   deleteKeys(keys: CacheKey[]): Promise<void>
 
-  deleteTags(tags: string[]): Promise<void>
+  deleteTags(tags: Array<string | string[]>): Promise<void>
 
   close(): Promise<void>
 }

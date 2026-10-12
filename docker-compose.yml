@@ -23,3 +23,38 @@ services:
     command:
       - valkey-server
       - /usr/local/etc/valkey/valkey.conf
+
+  # Three-master/three-replica cluster in one container, so that the node addresses it
+  # announces (127.0.0.1:7000-7005) also work from the host
+  valkey-cluster:
+    ports:
+      - "127.0.0.1:7000-7005:7000-7005"
+    image: "valkey/valkey:9.1"
+    command:
+      - sh
+      - -c
+      - |
+        for port in 7000 7001 7002 7003 7004 7005; do
+          valkey-server --port $$port --dbfilename dump-$$port.rdb --repl-diskless-sync-delay 0 --cluster-enabled yes --cluster-config-file nodes-$$port.conf --protected-mode no --save '' --daemonize yes
+        done
+        sleep 1
+        valkey-cli --cluster create 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005 --cluster-replicas 1 --cluster-yes || true
+        tail -f /dev/null
+
+  # Generate ephemeral certificates with test/__fixtures__/tls/create-certs.js.
+  tls-valkey-cluster:
+    ports:
+      - "127.0.0.1:7100-7102:7100-7102"
+    image: "valkey/valkey:9.1"
+    volumes:
+      - ${PWD}/test/__fixtures__/tls:/tls:ro
+    command:
+      - sh
+      - -c
+      - |
+        for port in 7100 7101 7102; do
+          valkey-server --port 0 --tls-port $$port --dbfilename tls-dump-$$port.rdb --tls-cluster yes --tls-auth-clients no --tls-cert-file /tls/server.crt --tls-key-file /tls/server.key --tls-ca-cert-file /tls/server.crt --requirepass cluster-test-password --masterauth cluster-test-password --cluster-enabled yes --cluster-config-file tls-nodes-$$port.conf --protected-mode no --save '' --daemonize yes
+        done
+        sleep 1
+        valkey-cli --tls --cacert /tls/server.crt -a cluster-test-password --no-auth-warning --cluster create 127.0.0.1:7100 127.0.0.1:7101 127.0.0.1:7102 --cluster-replicas 0 --cluster-yes
+        tail -f /dev/null

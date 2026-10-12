@@ -11,6 +11,7 @@
     "lint:fix": "eslint --fix",
     "valkey": "docker compose up -d",
     "test": "node --test --test-concurrency=1 ./test/*.test.js",
+    "test:cluster": "node --test --test-concurrency=1 ./test/cluster/*.test.js",
     "test:typescript": "tsd --files test/ && tsc ./index.d.ts --noEmit",
     "example:server": "node example/server.js",
     "example:client": "node example/client.js",

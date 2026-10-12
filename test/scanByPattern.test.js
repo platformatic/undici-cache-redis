@@ -2,7 +2,7 @@
 'use strict'
 
 const { test } = require('node:test')
-const { _scanByPattern: scanByPattern } = require('../lib/redis-cache-store.js')
+const { _scanByPattern: scanByPattern } = require('../lib/redis-cache-manager.js')
 const { ok, fail, deepStrictEqual, strictEqual } = require('node:assert')
 
 test('scanByPattern calls callback for matching keys and handles errors', async () => {
