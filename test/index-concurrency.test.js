@@ -187,3 +187,28 @@ test('rewriting tag metadata does not make a subscribed manager purge the rewrit
   await sleep(100)
   strictEqual(await read(store), 'new')
 })
+
+test('delayed manager orphan cleanup cannot delete a reindexed response', { timeout: 5000 }, async (t) => {
+  await cleanValkey()
+  const redis = new Redis()
+  const manager = new RedisCacheManager()
+  const store = new RedisCacheStore({ tracking: false })
+  let open, reached
+  const gate = new Promise(resolve => { open = resolve })
+  const waiting = new Promise(resolve => { reached = resolve })
+  t.after(async () => { open(); await manager.close(); await store.close(); await redis.quit() })
+  const original = Redis.prototype.eval
+  t.mock.method(Redis.prototype, 'eval', function (...args) {
+    if (!args[0].includes("redis.call('HEXISTS'")) return original.apply(this, args)
+    reached()
+    return gate.then(() => original.apply(this, args))
+  })
+  await write(store, 'old')
+  await redis.del(indexKey('', request))
+  const deleting = manager.deleteIds([entryId(request, indexField('GET'))])
+  await waiting
+  await write(store, 'new')
+  open()
+  await deleting
+  strictEqual(await read(store), 'new')
+})
