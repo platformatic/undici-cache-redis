@@ -4,6 +4,23 @@ const { test } = require('node:test')
 const { strictEqual, deepStrictEqual, notStrictEqual } = require('node:assert')
 const TrackingCache = require('../lib/tracking-cache')
 
+test('remembered misses respect their configured count and can be disabled', () => {
+  const cache = new TrackingCache({ maxMissCount: 1 })
+  cache.setMiss('first')
+  cache.setMiss('second')
+  strictEqual(cache.hasMiss('first'), false)
+  strictEqual(cache.hasMiss('second'), true)
+
+  const disabled = new TrackingCache({ maxMissCount: 0 })
+  disabled.setMiss('url')
+  strictEqual(disabled.hasMiss('url'), false)
+
+  const bounded = new TrackingCache({ maxCount: 1 })
+  bounded.setMiss('first')
+  bounded.setMiss('second')
+  strictEqual(bounded.hasMiss('first'), false)
+})
+
 test('should override cache entries', async () => {
   const cache = new TrackingCache()
 

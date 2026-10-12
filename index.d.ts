@@ -18,6 +18,9 @@ export interface RedisCacheStoreOpts {
   maxSize?: number
 
   maxCount?: number
+
+  /** Maximum remembered empty URLs; defaults to min(10000, maxCount). Zero disables it. */
+  maxMissCount?: number
   
   /**
    * Redis client-side caching

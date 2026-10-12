@@ -27,7 +27,7 @@ The cache uses structured Redis keys (`{u}` is a hash of origin + path, used as 
 - `metadata:{u}:{origin}:{path}:{method}:{id}` - Cache entry metadata, used by RedisCacheManager
 - `ids:{id}` - ID-to-metadata mapping
 - `cache-tags:{u}:{tags}:{id}` - Tag keys watched by RedisCacheManager
-- `tag-index:{tagHash}` - Set of index fields with the tag, used by `deleteTags()`
+- `tag-index:v2:{tagHash}` - Expiry-scored sorted set of write-specific memberships, used by `deleteTags()`
 
 ## Development Commands
 
