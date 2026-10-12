@@ -6,8 +6,10 @@
 const { test, before, beforeEach, after } = require('node:test')
 const { strictEqual, deepStrictEqual, ok } = require('node:assert')
 const { once } = require('node:events')
+const { setTimeout: sleep } = require('node:timers/promises')
 const { Cluster } = require('iovalkey')
 const { RedisCacheStore } = require('../../index.js')
+const { indexKey } = require('../../lib/keys.js')
 
 const CLUSTER_URL = process.env.CLUSTER_URL ?? 'redis://127.0.0.1:7000'
 const ORIGIN = 'http://cluster.local'
@@ -121,4 +123,57 @@ test('uses an existing cluster client and does not close it', async (t) => {
 
   await store.close()
   deepStrictEqual(await client.ping(), 'PONG')
+})
+
+test('keeps atomic entry scripts working after a live slot migration', async (t) => {
+  const store = createStore()
+  t.after(() => store.close())
+  await write(store, '/migrated', { tags: ['move'] })
+  const slot = await cluster.cluster('KEYSLOT', indexKey('cluster-test:', { origin: ORIGIN, path: '/migrated' }))
+  const slots = await cluster.cluster('SLOTS')
+  const owner = slots.find(([start, end]) => slot >= start && slot <= end)[2]
+  const source = cluster.nodes('master').find(node => Number(node.options.port) === owner[1])
+  const destination = cluster.nodes('master').find(node => node !== source)
+  const sourceId = await source.cluster('MYID')
+  const destinationId = await destination.cluster('MYID')
+  await destination.cluster('SETSLOT', slot, 'IMPORTING', sourceId)
+  await source.cluster('SETSLOT', slot, 'MIGRATING', destinationId)
+  for (;;) {
+    const keys = await source.cluster('GETKEYSINSLOT', slot, 100)
+    if (!keys.length) break
+    await source.call('MIGRATE', '127.0.0.1', destination.options.port, '', 0, 5000, 'KEYS', ...keys)
+  }
+  await Promise.all(cluster.nodes('master').map(node => node.cluster('SETSLOT', slot, 'NODE', destinationId)))
+  strictEqual(await read(store, '/migrated'), '/migrated')
+  await write(store, '/migrated', { tags: ['move'], body: 'after move' })
+  strictEqual(await read(store, '/migrated'), 'after move')
+  await store.deleteTags(['move'])
+  strictEqual(await read(store, '/migrated'), undefined)
+})
+
+test('keeps cached entries and invalidation working after replica promotion', async (t) => {
+  await new Promise((resolve, reject) => cluster.refreshSlotsCache(err => err ? reject(err) : resolve()))
+  let replica = cluster.nodes('slave')[0]
+  const discoveryDeadline = Date.now() + 15000
+  while (!replica && process.env.CLUSTER_REQUIRE_REPLICAS === '1') {
+    ok(Date.now() < discoveryDeadline, 'configured replicas were not discovered')
+    await sleep(100)
+    await new Promise((resolve, reject) => cluster.refreshSlotsCache(err => err ? reject(err) : resolve()))
+    replica = cluster.nodes('slave')[0]
+  }
+  if (!replica) return t.skip('cluster has no replicas; compose uses three replicas')
+  const store = createStore()
+  t.after(() => store.close())
+  await Promise.all(paths.map(path => write(store, path, { tags: ['failover'] })))
+  for (const master of cluster.nodes('master')) ok(await master.call('WAIT', 1, 5000) >= 1)
+  await replica.cluster('FAILOVER')
+  const deadline = Date.now() + 15000
+  while ((await replica.call('ROLE'))[0] !== 'master') {
+    ok(Date.now() < deadline, 'replica promotion timed out')
+    await sleep(100)
+  }
+  await new Promise((resolve, reject) => cluster.refreshSlotsCache(err => err ? reject(err) : resolve()))
+  for (const path of paths) strictEqual(await read(store, path), path)
+  await store.deleteTags(['failover'])
+  for (const path of paths) strictEqual(await read(store, path), undefined)
 })

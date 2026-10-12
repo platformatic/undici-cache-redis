@@ -209,6 +209,8 @@ interface RedisCacheStoreOpts {
 }
 ```
 
+Cluster URLs promote TLS and URL credentials to every discovered node, not only the startup endpoint. TLS certificates are verified by default; supply a trusted CA through `clusterOptions.redisOptions.tls` when using a private CA. Explicit client options override URL credentials. Only master reads are supported (`scaleReads: 'master'`); replica/random read strategies can serve stale data after invalidation and are rejected, including on provided Cluster clients. Cluster mode uses `ids:{urlHash}:{id}` so all entry keys in atomic scripts share one slot. `RedisCacheManager` remains standalone-only. Tracking and remembered misses are disabled in cluster mode; standalone benchmark numbers do not describe cluster performance.
+
 ### RedisCacheManager Options
 
 ```typescript
@@ -400,7 +402,7 @@ The library uses a structured approach to Redis keys:
 - **Metadata keys**: `{prefix}metadata:{urlHash}:{origin}:{path}:{method}:{id}`
 - **ID keys**: `{prefix}ids:{id}`
 - **Tag keys**: `{prefix}cache-tags:{urlHash}:{tag1}:{tag2}:{id}`
-- **Tag index keys**: `{prefix}tag-index:{tagHash}` - a set of the index fields that have the tag
+- **Tag index keys**: `{prefix}tag-index:v2:{tagHash}` - a sorted set of write-specific memberships, scored by entry expiry
 
 Where `{prefix}` is your configured `keyPrefix`. The braced `{urlHash}` is a Valkey/Redis Cluster hash tag, so every key read by a lookup lives in the same slot. Entry IDs are derived from the URL, method and Vary values unless an explicit `key.id` is supplied, so writing the same variant again overwrites it in place.
 
@@ -408,7 +410,9 @@ A lookup reads the index of a single URL (`HGETALL`) and then the selected value
 
 `delete()`, `deleteKeys()` and `deleteTags()` also use the indexes instead of scanning. `RedisCacheManager` still scans for its maintenance operations (`streamEntries()`, `getDependentEntries()` and cross-prefix invalidation).
 
-Index and tag index keys expire together with their longest-lived entry, and expired variants are removed from the index when the URL is written again.
+Response values, metadata, ID mappings and URL indexes are published together by a version-checked Redis script. Deletions check the same write version atomically, so a delayed purge cannot delete a newer rewrite. Tag memberships are write-specific and live in separate expiry-scored sorted sets. Every tag write sweeps expired memberships; purges scan incrementally with bounded concurrent lookups. Tag invalidation is not a transaction with writes that are still in flight across separate cluster slots; await writes before purging when that ordering is required.
+
+Index and tag index keys expire together with their longest-lived entry, and expired variants are removed from the index when the URL is written again. Local tracking records the request values for all applicable indexed Vary headers, so a locally cached generic response cannot hide a more specific variant.
 
 ### Cluster and Externally Supplied Clients
 
@@ -454,7 +458,7 @@ const store = new RedisCacheStore({
 
 ### Migration Notes
 
-Entries written by previous versions are not indexed, so lookups don't find them. Flush the cache when upgrading, or let the old entries expire.
+Entries written by previous released versions are not indexed, so lookups do not find them. Let them expire or clear only the cache's namespace. Use a coordinated rollout or a versioned key prefix; old and new clients do not provide coherent shared invalidation during a mixed-version rollout. The expiry-scored tag indexes use a separate `tag-index:v2:` namespace, so earlier set-based indexes can expire without WRONGTYPE errors. This update requires Redis >= 7.0 and EVAL permission; account for this minimum-version change in release policy.
 
 
 ## Cache Invalidation Flow
@@ -534,8 +538,8 @@ flowchart TD
 
 ## Performance Considerations
 
-1. **Client-side Tracking**: Enabled by default, serves repeated lookups from memory and is invalidated by the server
-2. **Indexed Lookups**: A lookup is two commands on one slot, independent of the database size
+1. **Client-side Tracking**: Standalone deployments reduce Redis round trips through local caching; URL invalidations clear cached results
+2. **Indexed Lookups**: Reads use a URL index and selected response value, independent of the total database size
 3. **Pipeline Operations**: Commands are auto-pipelined
 4. **Binary Data**: Efficiently handles binary responses with base64 encoding
 5. **Memory Management**: Configurable size limits prevent memory exhaustion
@@ -618,7 +622,7 @@ const manager = new RedisCacheManager({
 ## Requirements
 
 - Node.js >= 20
-- Redis >= 7.0 or Valkey >= 7.2, with `EVAL` allowed (used to drop expired variants safely)
+- Redis >= 7.0 or Valkey >= 7.2, with `EVAL` allowed (used for atomic publication/deletion and expiry-aware tag indexes)
 - Undici >= 7.0
 
 ## License

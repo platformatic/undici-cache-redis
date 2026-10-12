@@ -24,6 +24,7 @@ export interface RedisCacheStoreOpts {
 
   startupNodes?: ClusterNode | ClusterNode[]
 
+  /** Master reads only; TLS/URL credentials apply to all discovered shards. */
   clusterOptions?: ClusterOptions
 
   /**

@@ -703,8 +703,8 @@ function cacheStoreTests (CacheStore) {
 
     await t.test('the index lives as long as the longest of two concurrent first writes', async () => {
       await cleanValkey()
-      const short = gatedClient('set', 'hset', 'pexpireat')
-      const long = gatedClient('set', 'hset', 'pexpireat')
+      const short = gatedClient('eval')
+      const long = gatedClient('eval')
       const writes = Promise.all([
         write(createStore(short.client), { ttl: 1000, language: 'en' }),
         write(createStore(long.client), { ttl: 60_000, language: 'pt' })
@@ -723,7 +723,7 @@ function cacheStoreTests (CacheStore) {
       const store = createStore()
       await write(store, { body: 'old' })
 
-      const writer = gatedClient('set', 'hset', 'pexpireat')
+      const writer = gatedClient('eval')
       const writing = write(createStore(writer.client), { body: 'new' })
       await sleep(100)
       await store.delete(request())
@@ -738,7 +738,7 @@ function cacheStoreTests (CacheStore) {
       const store = createStore()
       await write(store, { tags: ['x'], body: 'v1' })
 
-      const purger = gatedClient('srem')
+      const purger = gatedClient('zrem')
       const purging = createStore(purger.client).deleteTags(['x'])
       await sleep(100)
       await write(store, { tags: ['x'], body: 'v2' })
@@ -756,7 +756,7 @@ function cacheStoreTests (CacheStore) {
       await write(store, { ttl: 200, tags: ['x'], language: 'en', body: 'en-v1' })
       await sleep(300)
 
-      const writer = gatedClient('hdel', 'srem', 'del', 'eval')
+      const writer = gatedClient('zrem', 'eval')
       const writing = write(createStore(writer.client), { language: 'pt' })
       await sleep(100)
       await write(store, { tags: ['x'], language: 'en', body: 'en-v2' })
