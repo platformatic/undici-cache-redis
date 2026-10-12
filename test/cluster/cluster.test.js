@@ -166,7 +166,10 @@ test('keeps cached entries and invalidation working after replica promotion', as
   t.after(() => store.close())
   await Promise.all(paths.map(path => write(store, path, { tags: ['failover'] })))
   for (const master of cluster.nodes('master')) ok(await master.call('WAIT', 1, 5000) >= 1)
-  await replica.cluster('FAILOVER')
+  // WAIT above establishes data synchronization. FORCE requests a planned
+  // promotion without the master's pause handshake, which races with fresh
+  // resharding gossip in a newly bootstrapped test cluster.
+  await replica.cluster('FAILOVER', 'FORCE')
   const deadline = Date.now() + 15000
   while ((await replica.call('ROLE'))[0] !== 'master') {
     ok(Date.now() < deadline, 'replica promotion timed out')
