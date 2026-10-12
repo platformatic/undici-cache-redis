@@ -110,6 +110,10 @@ test('should stream cache entries', async (t) => {
 
   await store1.deleteTags([['tag1', 'tag2']])
 
+  // The manager invalidates the other prefixes when it is notified of the
+  // deleted tag keys
+  await sleep(500)
+
   const foundEntries = []
   await manager.streamEntries(entry => foundEntries.push(entry), '*')
   assert.strictEqual(foundEntries.length, 2)
