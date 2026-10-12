@@ -163,6 +163,9 @@ const responseBody = await manager.getResponseById('entry-id', 'my-app:cache:')
 
 ```typescript
 interface RedisCacheStoreOpts {
+  // Use an existing iovalkey client (not closed by close())
+  client?: Redis
+
   // Redis client options (passed to iovalkey)
   clientOpts?: {
     host?: string
@@ -179,6 +182,9 @@ interface RedisCacheStoreOpts {
   
   // Maximum number of entries (for client-side cache)
   maxCount?: number
+
+  // Maximum remembered empty URLs; default min(10000, maxCount), 0 disables it
+  maxMissCount?: number
   
   // Enable/disable client-side tracking cache (default: true)
   tracking?: boolean
@@ -377,12 +383,27 @@ graph TB
 
 The library uses a structured approach to Redis keys:
 
-- **Metadata keys**: `{prefix}metadata:{origin}:{path}:{method}:{id}`
-- **Value keys**: `{prefix}values:{id}`
+- **Index keys**: `{prefix}index:{urlHash}` - one hash per origin + path, with one field per method and Vary variant
+- **Value keys**: `{prefix}values:{urlHash}:{id}`
+- **Metadata keys**: `{prefix}metadata:{urlHash}:{origin}:{path}:{method}:{id}`
 - **ID keys**: `{prefix}ids:{id}`
-- **Tag keys**: `{prefix}cache-tags:{tag1}:{tag2}:{id}`
+- **Tag keys**: `{prefix}cache-tags:{urlHash}:{tag1}:{tag2}:{id}`
+- **Tag index keys**: `{prefix}tag-index:v2:{tagHash}` - a sorted set of write-specific memberships, scored by entry expiry
 
-Where `{prefix}` is your configured `keyPrefix` and `{id}` is a UUID for each cache entry.
+Where `{prefix}` is your configured `keyPrefix`. The braced `{urlHash}` lets the store map key invalidations back to a URL, and works as a Valkey/Redis Cluster hash tag. Entry IDs are derived from the URL, method and Vary values unless an explicit `key.id` is supplied, so writing the same variant again overwrites it in place.
+
+A lookup reads the index of a single URL (`HGETALL`) and then the selected value (`GET`). It never uses `SCAN` or `KEYS`, so its cost depends on the number of variants of that URL, not on the size of the database. Vary header names are normalized to lower case, request header matching is case-insensitive, `Vary: *` responses are not cached, and when several variants match the most specific one is returned.
+
+`delete()`, `deleteKeys()` and `deleteTags()` also use the indexes instead of scanning. `RedisCacheManager` still scans for its maintenance operations (`streamEntries()`, `getDependentEntries()` and cross-prefix invalidation).
+
+Response values, metadata, ID mappings and URL indexes are published together by a version-checked Redis script. Deletions check the same write version atomically, so a delayed purge cannot delete a newer rewrite. Tag memberships are write-specific and live in separate expiry-scored sorted sets. Every tag write sweeps expired memberships; purges scan incrementally with bounded concurrent lookups. Tag invalidation is not a transaction with writes that are still in flight across separate cluster slots; await writes before purging when that ordering is required.
+
+Index and tag index keys expire together with their longest-lived entry, and expired variants are removed from the index when the URL is written again. Local tracking records the request values for all applicable indexed Vary headers, so a locally cached generic response cannot hide a more specific variant.
+
+### Migration Notes
+
+Entries written by previous released versions are not indexed, so lookups do not find them. Let them expire or clear only the cache's namespace. Use a coordinated rollout or a versioned key prefix; old and new clients do not provide coherent shared invalidation during a mixed-version rollout. The expiry-scored tag indexes use a separate `tag-index:v2:` namespace, so earlier set-based indexes can expire without WRONGTYPE errors. This update requires Redis >= 7.0 and EVAL permission; account for this minimum-version change in release policy.
+
 
 ## Cache Invalidation Flow
 
@@ -459,12 +480,15 @@ flowchart TD
 3. **Automatic Expiration**: Handles Redis TTL expiration and manual deletions
 4. **Client-side Tracking**: Maintains local cache consistency via Redis invalidation notifications
 
+Remembered misses have a separate count budget, `maxMissCount` (default: the smaller of 10,000 and `maxCount`). They do not store response bodies and are not charged against the response-body `maxSize` budget. Set `maxMissCount: 0` to disable negative caching while retaining positive tracking. A miss is only remembered for a completely empty URL index, never for a Redis error or a nonmatching Vary/method. Server invalidation and reconnect clearing remove it.
+
 ## Performance Considerations
 
-1. **Client-side Tracking**: Enabled by default, provides in-memory caching of metadata
-2. **Pipeline Operations**: Uses Redis pipelining for batch operations
-3. **Binary Data**: Efficiently handles binary responses with base64 encoding
-4. **Memory Management**: Configurable size limits prevent memory exhaustion
+1. **Client-side Tracking**: Standalone deployments reduce Redis round trips through local caching; URL invalidations clear cached results
+2. **Indexed Lookups**: Reads use a URL index and selected response value, independent of the total database size
+3. **Pipeline Operations**: Commands are auto-pipelined
+4. **Binary Data**: Efficiently handles binary responses with base64 encoding
+5. **Memory Management**: Configurable size limits prevent memory exhaustion
 
 ## API Reference
 
@@ -544,7 +568,7 @@ const manager = new RedisCacheManager({
 ## Requirements
 
 - Node.js >= 20
-- Redis >= 6.0 or Valkey >= 7.2
+- Redis >= 7.0 or Valkey >= 7.2, with `EVAL` allowed (used for atomic publication/deletion and expiry-aware tag indexes)
 - Undici >= 7.0
 
 ## License
@@ -582,6 +606,14 @@ The benchmarks test a realistic proxy server architecture:
 Expected results show **10-15x performance improvement** with caching enabled.
 
 For detailed benchmarking instructions, see [benchmarks/README.md](./benchmarks/README.md).
+
+To measure the store alone, against a database that also holds unrelated keys, with one or several processes sharing the same hot URLs like the replicas of a deployment:
+
+```bash
+node benchmarks/pods.js --pods 1 --concurrency 64 [--tracking off]
+node benchmarks/pods.js --pods 4 --ratios 0.2,0.45,0.75,0.95
+```
+
 ## Contributing
 
 This project is part of the Platformatic ecosystem. For contributing guidelines, please refer to the main [Platformatic repository](https://github.com/platformatic/platformatic).

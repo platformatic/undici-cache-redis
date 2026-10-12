@@ -1,9 +1,15 @@
 import { EventEmitter, Writable } from "node:stream";
-import { RedisOptions } from "iovalkey";
+import { Redis, RedisOptions } from "iovalkey";
 import { GetResult, CacheKey, CachedResponse } from "./lib/internal-types";
 
 export interface RedisCacheStoreOpts {
   clientConfigTracking?: boolean
+
+  /**
+   * Use an existing client instead of creating one. It is not closed by
+   * `close()`.
+   */
+  client?: Redis
 
   clientOpts?: RedisOptions
   
@@ -12,6 +18,9 @@ export interface RedisCacheStoreOpts {
   maxSize?: number
 
   maxCount?: number
+
+  /** Maximum remembered empty URLs; defaults to min(10000, maxCount). Zero disables it. */
+  maxMissCount?: number
   
   /**
    * Redis client-side caching
@@ -42,7 +51,7 @@ declare class RedisCacheStore extends EventEmitter {
 
   deleteKeys(keys: CacheKey[]): Promise<void>
 
-  deleteTags(tags: string[]): Promise<void>
+  deleteTags(tags: Array<string | string[]>): Promise<void>
 
   close(): Promise<void>
 }
