@@ -49,6 +49,6 @@
     "typescript": "^5.9.2",
     "undici": "^7.13.0",
     "fastify": "^5.4.0",
-    "autocannon": "^8.0.0"
+    "autocannon": "^9.0.0"
   }
 }
