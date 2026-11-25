@@ -37,14 +37,14 @@
   },
   "homepage": "https://github.com/platformatic/undici-cache-redis#readme",
   "dependencies": {
-    "iovalkey": "^0.3.3",
+    "iovalkey": "^0.4.0",
     "lru_map": "^0.4.1"
   },
   "devDependencies": {
     "atomic-sleep": "^1.0.0",
     "@types/node": "^24.0.0",
     "eslint": "^9.32.0",
-    "neostandard": "^0.13.0",
+    "neostandard": "^0.14.0",
     "tsd": "^0.33.0",
     "typescript": "^5.9.2",
     "undici": "^7.13.0",
